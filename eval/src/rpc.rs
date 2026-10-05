@@ -141,7 +141,7 @@ struct EvalParams {
     inputs: BTreeMap<String, String>,
     /// Complete in-memory source set; all other files are read from disk.
     #[serde(default)]
-    sources: BTreeMap<PathBuf, String>,
+    sources: BTreeMap<PathBuf, Option<String>>,
 }
 
 fn evaluate(id: Value, params: Value, runtime: &Mutex<Runtime>) -> Value {
@@ -177,7 +177,7 @@ fn evaluate(id: Value, params: Value, runtime: &Mutex<Runtime>) -> Value {
         Ok(output) => match serde_json::to_value(output) {
             Ok(output) => json!({
                 "jsonrpc": "2.0", "id": id,
-                "result": {"revision": evaluation.revision, "output": output, "warnings": warnings},
+                "result": {"revision": evaluation.revision, "output": output, "warnings": warnings, "reads": evaluation.reads},
             }),
             Err(reason) => error(id, -32603, &reason.to_string(), Value::Null),
         },
@@ -186,7 +186,7 @@ fn evaluate(id: Value, params: Value, runtime: &Mutex<Runtime>) -> Value {
             -32001,
             &reason.to_string(),
             json!({
-                "revision": evaluation.revision, "warnings": warnings,
+                "revision": evaluation.revision, "warnings": warnings, "reads": evaluation.reads,
             }),
         ),
     }

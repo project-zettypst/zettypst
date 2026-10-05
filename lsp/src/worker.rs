@@ -161,7 +161,14 @@ fn evaluate(runtime: &mut Runtime, job: &Job) -> Result<Output, ResponseError> {
         .map(|(key, value)| (key.into(), TypstValue::Str(value.into())))
         .collect::<Dict>();
     let evaluation = runtime
-        .evaluate_with_sources(&job.params.entry, inputs, job.sources.clone())
+        .evaluate_with_sources(
+            &job.params.entry,
+            inputs,
+            job.sources
+                .iter()
+                .map(|(path, text)| (path.clone(), Some(text.clone())))
+                .collect(),
+        )
         .map_err(|error| failure(ErrorCode::InvalidParams, error.to_string()))?;
     let warnings: Vec<_> = evaluation
         .result

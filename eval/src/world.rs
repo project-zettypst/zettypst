@@ -39,7 +39,7 @@ pub struct ProjectWorld {
     book: LazyHash<FontBook>,
     fonts: Vec<FontSlot>,
     slots: Mutex<HashMap<FileId, FileSlot>>,
-    overrides: HashMap<FileId, Bytes>,
+    overrides: HashMap<FileId, Option<Bytes>>,
     packages: PackageStorage,
     package_roots: Mutex<HashMap<PackageSpec, PathBuf>>,
     now: DateTime<Local>,
@@ -109,12 +109,17 @@ impl ProjectWorld {
         &mut self,
         entry: impl AsRef<Path>,
         inputs: Dict,
-        sources: BTreeMap<PathBuf, String>,
+        sources: BTreeMap<PathBuf, Option<String>>,
     ) -> Result<()> {
         let main = entry_id(entry.as_ref())?;
         let overrides = sources
             .into_iter()
-            .map(|(path, text)| Ok((entry_id(&path)?, Bytes::new(text.into_bytes()))))
+            .map(|(path, text)| {
+                Ok((
+                    entry_id(&path)?,
+                    text.map(|text| Bytes::new(text.into_bytes())),
+                ))
+            })
             .collect::<Result<_>>()?;
         self.main = main;
         self.overrides = overrides;
@@ -227,6 +232,28 @@ impl ProjectWorld {
         result
     }
 
+    /// Project-relative disk reads only; overlays and packages are excluded.
+    pub fn reads(&self) -> BTreeMap<PathBuf, Option<String>> {
+        self.slots
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, slot)| {
+                slot.accessed && id.package().is_none() && !self.overrides.contains_key(id)
+            })
+            .filter_map(|(id, slot)| match &slot.bytes {
+                Some(Ok(bytes)) => Some((
+                    id.vpath().as_rootless_path().to_owned(),
+                    Some(content_hash(bytes)),
+                )),
+                Some(Err(FileError::NotFound(_))) => {
+                    Some((id.vpath().as_rootless_path().to_owned(), None))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn validates(
         &self,
         dependencies: &Dependencies,
@@ -244,7 +271,9 @@ impl ProjectWorld {
         let slot = slots.entry(id).or_default();
         if !slot.accessed {
             let bytes = if let Some(bytes) = self.overrides.get(&id) {
-                Ok(bytes.clone())
+                bytes
+                    .clone()
+                    .ok_or_else(|| FileError::NotFound(id.vpath().as_rootless_path().into()))
             } else {
                 self.path_for(id).and_then(|path| {
                     fs::read(&path)

@@ -63,7 +63,14 @@ fn divergent_overlays_cannot_be_persisted_or_restore_disk_ranges() -> Result<()>
     let disk = runtime.evaluate("main.typ", Dict::new())?;
     let different = BTreeMap::from([("data.txt".into(), "unsaved".into())]);
     assert!(!runtime.validates(&disk.dependencies, &different));
-    let unsaved = runtime.evaluate_with_sources("main.typ", Dict::new(), different.clone())?;
+    let unsaved = runtime.evaluate_with_sources(
+        "main.typ",
+        Dict::new(),
+        different
+            .iter()
+            .map(|(p, s)| (p.clone(), Some(s.clone())))
+            .collect(),
+    )?;
     assert!(unsaved.result.output.is_ok());
     assert!(!runtime.validates(&unsaved.dependencies, &different));
     assert!(!runtime.validates(&unsaved.dependencies, &BTreeMap::new()));
@@ -133,5 +140,41 @@ fn wrong_font_book_is_rejected() -> Result<()> {
     let mut deps = result.dependencies.clone();
     deps.font_book = Some("different font inventory".into());
     assert!(!runtime.validates(&deps, &BTreeMap::new()));
+    Ok(())
+}
+
+#[test]
+fn transaction_reads_cover_sources_data_and_negative_reads() -> Result<()> {
+    let (root, mut runtime) = fixture(
+        "#include \"part.typ\"\n#announce(toml(\"data.toml\"))\n#announce(read(\"raw.txt\"))",
+    )?;
+    fs::write(root.path().join("part.typ"), "")?;
+    fs::write(root.path().join("data.toml"), "a = 1")?;
+    fs::write(root.path().join("raw.txt"), "abc")?;
+    for _ in 0..3 {
+        let result = runtime.evaluate("main.typ", Dict::new())?;
+        assert!(result.result.output.is_ok(), "{:?}", result.result.output);
+        assert_eq!(result.reads.len(), 4);
+        for path in ["main.typ", "part.typ", "data.toml", "raw.txt"] {
+            use sha2::{Digest, Sha256};
+            let expected = format!("{:x}", Sha256::digest(fs::read(root.path().join(path))?));
+            assert_eq!(result.reads[std::path::Path::new(path)], Some(expected));
+        }
+    }
+    let overlay = BTreeMap::from([("raw.txt".into(), Some("overlay".into()))]);
+    let result = runtime.evaluate_with_sources("main.typ", Dict::new(), overlay)?;
+    assert!(result.result.output.is_ok());
+    assert!(!result.reads.contains_key(std::path::Path::new("raw.txt")));
+    let deleted = BTreeMap::from([("part.typ".into(), None)]);
+    let result = runtime.evaluate_with_sources("main.typ", Dict::new(), deleted)?;
+    assert!(result.result.output.is_err());
+    assert!(!result.reads.contains_key(std::path::Path::new("part.typ")));
+    fs::remove_file(root.path().join("part.typ"))?;
+    let result = runtime.evaluate("main.typ", Dict::new())?;
+    assert!(result.result.output.is_err());
+    assert_eq!(
+        result.reads.get(std::path::Path::new("part.typ")),
+        Some(&None)
+    );
     Ok(())
 }

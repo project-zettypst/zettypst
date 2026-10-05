@@ -15,6 +15,7 @@ pub struct Evaluation {
     pub result: Warned<Result<Value>>,
     pub sources: SourceSnapshot,
     pub dependencies: Dependencies,
+    pub reads: BTreeMap<PathBuf, Option<String>>,
 }
 
 /// A single project's long-lived evaluator. Requests are evaluated sequentially.
@@ -60,7 +61,7 @@ impl Runtime {
         &mut self,
         entry: impl AsRef<Path>,
         inputs: Dict,
-        sources: BTreeMap<PathBuf, String>,
+        sources: BTreeMap<PathBuf, Option<String>>,
     ) -> Result<Arc<Evaluation>> {
         self.world.prepare_with_sources(entry, inputs, sources)?;
         self.revision += 1;
@@ -71,6 +72,7 @@ impl Runtime {
             result,
             sources,
             dependencies: self.world.dependencies(),
+            reads: self.world.reads(),
         });
         self.latest = Some(evaluation.clone());
         typst::comemo::evict(10);
