@@ -47,7 +47,8 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     let read = runtime.evaluate(".zettypst/host/nodes.typ", Dict::new())?;
     let value = serde_json::to_value(read.result.output.as_ref().unwrap())?;
     assert_eq!(value["host.node"][0]["id"], "welcome");
-    let request = serde_json::json!({"title": "A \"title\" #safe", "now": {"year": 2026, "month": 10, "day": 5, "hour": 12, "minute": 0, "second": 0}});
+    // A control character has no JSON escape that is also valid Typst.
+    let request = serde_json::json!({"title": "A \"title\" #safe\u{7}", "now": {"year": 2026, "month": 10, "day": 5, "hour": 12, "minute": 0, "second": 0}});
     let plan = runtime.evaluate(".zettypst/host/new.typ", inputs(request))?;
     let value = serde_json::to_value(plan.result.output.as_ref().unwrap())?;
     let plan = &value["host.plan"][0];

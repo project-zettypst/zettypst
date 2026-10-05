@@ -8,7 +8,7 @@
 #let paths = toml("/" + manifest).paths
 #assert(path not in paths, message: "new path is already registered")
 // Plain text is inserted as a string expression, never as executable markup.
-#let content = "#import \"../.zettypst/lib.typ\": *\n#show: zettel\n\n= #text(" + json.encode(req.title) + ") <" + id + ">\n"
+#let content = "#import \"../.zettypst/lib.typ\": *\n#show: zettel\n\n= #text(" + repr(req.title) + ") <" + id + ">\n"
 #eval.announce(<host.plan>, host.plan(
   (
     host.create(path, content),
