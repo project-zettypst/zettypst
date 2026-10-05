@@ -134,6 +134,7 @@ enum Kind {
     Lsp,
     // None means cancellation or invalidation already completed this request.
     Command(Option<RequestId>),
+    Detached(Option<RequestId>),
 }
 
 struct Active {
@@ -419,7 +420,7 @@ impl Server<'_> {
                     found = true;
                 }
                 if let Some(Active {
-                    kind: Kind::Command(pending),
+                    kind: Kind::Command(pending) | Kind::Detached(pending),
                     ..
                 }) = &mut self.active
                     && pending.as_ref() == Some(&id)
@@ -520,14 +521,22 @@ impl Server<'_> {
         for (id, _) in std::mem::take(&mut self.waiting) {
             self.send(id, Err(error.clone()))?;
         }
-        for (id, _) in std::mem::take(&mut self.commands) {
-            self.send(id, Err(error.clone()))?;
+        for (id, params) in std::mem::take(&mut self.commands) {
+            if params.detached && error.code == ErrorCode::ContentModified as i32 {
+                self.commands.push_back((id, params));
+            } else {
+                self.send(id, Err(error.clone()))?;
+            }
         }
         let active_id = match &mut self.active {
             Some(Active {
                 kind: Kind::Command(id),
                 ..
             }) => id.take(),
+            Some(Active {
+                kind: Kind::Detached(id),
+                ..
+            }) if error.code != ErrorCode::ContentModified as i32 => id.take(),
             _ => None,
         };
         if let Some(id) = active_id {
@@ -544,7 +553,14 @@ impl Server<'_> {
             self.due = None;
             (Kind::Lsp, self.config.evaluation.clone())
         } else if let Some((id, params)) = self.commands.pop_front() {
-            (Kind::Command(Some(id)), params)
+            (
+                if params.detached {
+                    Kind::Detached(Some(id))
+                } else {
+                    Kind::Command(Some(id))
+                },
+                params,
+            )
         } else {
             return Ok(());
         };
@@ -632,7 +648,9 @@ impl Server<'_> {
 
     fn completed(&mut self, result: Result<Output, ResponseError>) -> Result<()> {
         let active = self.active.take().context("unexpected evaluator result")?;
-        if self.shutdown || active.generation != self.generation {
+        if self.shutdown
+            || (active.generation != self.generation && !matches!(active.kind, Kind::Detached(_)))
+        {
             // Startup spans superseded attempts; only a current result ends it.
             // Shutdown already closed any visible progress in request().
             return Ok(());
@@ -652,7 +670,16 @@ impl Server<'_> {
                 });
                 self.send(id, result)?;
             }
-            Kind::Command(None) => {}
+            Kind::Detached(Some(id)) => self.send(
+                id,
+                result.map(|output| {
+                    json!({
+                        "revision": output.revision, "output": output.output,
+                        "warnings": output.warnings, "reads": output.reads,
+                    })
+                }),
+            )?,
+            Kind::Command(None) | Kind::Detached(None) => {}
             Kind::Lsp => {
                 self.restored_dependencies = None;
                 if result.is_ok() {

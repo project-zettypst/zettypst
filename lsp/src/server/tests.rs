@@ -297,3 +297,26 @@ fn detached_command_schedules_only_explicit_sources() -> Result<()> {
     assert_eq!(response.result.unwrap()["reads"], json!({}));
     Ok(())
 }
+
+#[test]
+fn detached_survives_document_changes_during_evaluation() -> Result<()> {
+    let (connection, client) = Connection::memory();
+    let (mut server, _jobs) = server(&connection);
+    server.active = Some(Active {
+        generation: 0,
+        kind: Kind::Detached(Some(92.into())),
+    });
+    server.changed()?;
+    server.completed(output())?;
+    let response = client
+        .receiver
+        .try_iter()
+        .find_map(|message| match message {
+            Message::Response(response) => Some(response),
+            _ => None,
+        })
+        .unwrap();
+    assert!(response.error.is_none());
+    assert_eq!(response.result.unwrap()["revision"], 1);
+    Ok(())
+}
