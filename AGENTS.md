@@ -1,0 +1,3 @@
+- Follow **Conventional Commits** and keep commits atomic.
+- README files are **human-edited only**. Agents MUST NOT edit them.
+- Read the `core` module and understand its abstractions before making changes. Do not modify `core` for downstream feature work. If a `core` change is justified, pause and obtain user approval before proceeding.
