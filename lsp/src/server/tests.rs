@@ -15,6 +15,7 @@ fn server(connection: &Connection) -> (Server<'_>, crossbeam_channel::Receiver<J
         evaluation: EvalParams {
             entry: "lsp.typ".into(),
             inputs: BTreeMap::new(),
+            ..Default::default()
         },
         code_actions: false,
         disabled_actions: false,
@@ -72,6 +73,7 @@ fn output() -> Result<Output, ResponseError> {
         output: json!({}),
         warnings: vec![],
         dependencies: Dependencies::default(),
+        reads: BTreeMap::new(),
     })
 }
 
@@ -131,6 +133,7 @@ fn failed_or_invalid_outputs_end_without_claiming_ready() -> Result<()> {
             output: json!(false),
             warnings: vec![],
             dependencies: Dependencies::default(),
+            reads: BTreeMap::new(),
         }),
     ] {
         let (connection, client) = Connection::memory();
@@ -259,5 +262,38 @@ fn capability_is_opt_in() -> Result<()> {
         "capabilities": {}, "initializationOptions": {"entry": "lsp.typ"}
     }))?;
     assert!(!Config::from_initialize(params, Some(std::env::current_dir()?))?.work_done_progress);
+    Ok(())
+}
+
+#[test]
+fn detached_command_schedules_only_explicit_sources() -> Result<()> {
+    let (connection, client) = Connection::memory();
+    let (mut server, jobs) = server(&connection);
+    server.due = None;
+    server.documents.insert(
+        "main.typ".into(),
+        Document {
+            uri: Url::from_file_path(server.config.root.join("main.typ")).unwrap(),
+            version: 1,
+            text: "unsaved".into(),
+        },
+    );
+    server.request(Request::new(91.into(), "workspace/executeCommand".into(), json!({
+        "command": "zettyp.evalDetached", "arguments": [{"entry": "main.typ", "sources": {"gone.typ": null}}]
+    })))?;
+    server.schedule()?;
+    let job = jobs.recv()?;
+    assert!(job.params.detached);
+    assert!(job.sources.is_empty());
+    assert_eq!(
+        job.params.sources.get(std::path::Path::new("gone.typ")),
+        Some(&None)
+    );
+    server.completed(output())?;
+    assert!(server.cache.is_none());
+    let Message::Response(response) = client.receiver.recv()? else {
+        panic!("response expected")
+    };
+    assert_eq!(response.result.unwrap()["reads"], json!({}));
     Ok(())
 }

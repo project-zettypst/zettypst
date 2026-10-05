@@ -30,6 +30,7 @@ fn fixture() -> Result<(tempfile::TempDir, Runtime, Store, EvalParams, Payload)>
     let params = EvalParams {
         entry: "main.typ".into(),
         inputs: BTreeMap::new(),
+        ..Default::default()
     };
     let payload = Payload {
         dependencies: evaluation.dependencies.clone(),

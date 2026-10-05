@@ -153,6 +153,7 @@ fn unsupported_storage_evaluates_sources_and_answers_queued_hover() -> Result<()
             "source".into(),
             root.join("main.typ").to_str().unwrap().into(),
         )]),
+        ..Default::default()
     };
     server.worker = Worker::start(
         root.clone(),

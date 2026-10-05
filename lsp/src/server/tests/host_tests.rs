@@ -8,6 +8,7 @@ fn write_output() -> Output {
         }]}),
         warnings: vec![],
         dependencies: Dependencies::default(),
+        reads: BTreeMap::new(),
     }
 }
 

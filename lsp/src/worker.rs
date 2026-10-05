@@ -14,12 +14,16 @@ use zettyp_eval::{Dependencies, Runtime, WorldOptions};
 use crate::snapshot::{Payload, Store};
 use crate::values::{Announcements, View};
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EvalParams {
     pub entry: PathBuf,
     #[serde(default)]
     pub inputs: BTreeMap<String, String>,
+    #[serde(default)]
+    pub sources: BTreeMap<PathBuf, Option<String>>,
+    #[serde(skip)]
+    pub detached: bool,
 }
 
 impl EvalParams {
@@ -51,6 +55,7 @@ pub struct Output {
     pub revision: u64,
     pub output: Value,
     pub warnings: Vec<String>,
+    pub reads: BTreeMap<PathBuf, Option<String>>,
     #[serde(skip)]
     pub dependencies: Dependencies,
 }
@@ -164,10 +169,14 @@ fn evaluate(runtime: &mut Runtime, job: &Job) -> Result<Output, ResponseError> {
         .evaluate_with_sources(
             &job.params.entry,
             inputs,
-            job.sources
-                .iter()
-                .map(|(path, text)| (path.clone(), Some(text.clone())))
-                .collect(),
+            if job.params.detached {
+                job.params.sources.clone()
+            } else {
+                job.sources
+                    .iter()
+                    .map(|(p, s)| (p.clone(), Some(s.clone())))
+                    .collect()
+            },
         )
         .map_err(|error| failure(ErrorCode::InvalidParams, error.to_string()))?;
     let warnings: Vec<_> = evaluation
@@ -191,6 +200,7 @@ fn evaluate(runtime: &mut Runtime, job: &Job) -> Result<Output, ResponseError> {
         revision: evaluation.revision,
         output,
         warnings,
+        reads: evaluation.reads.clone(),
         dependencies: evaluation.dependencies.clone(),
     })
 }
@@ -200,5 +210,49 @@ pub fn failure(code: ErrorCode, message: impl Into<String>) -> ResponseError {
         code: code as i32,
         message: message.into(),
         data: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn detached_ignores_documents_and_passes_tombstones_and_reads() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        std::fs::write(
+            root.path().join("main.typ"),
+            "#metadata((tag: <test>, value: read(\"data.txt\")))<eval.announcement>",
+        )?;
+        std::fs::write(root.path().join("data.txt"), "disk")?;
+        let mut runtime = Runtime::new_with_options(
+            root.path(),
+            WorldOptions {
+                ignore_system_fonts: true,
+                ..Default::default()
+            },
+        )?;
+        let mut job = Job {
+            params: EvalParams {
+                entry: "main.typ".into(),
+                detached: true,
+                ..Default::default()
+            },
+            sources: BTreeMap::from([("main.typ".into(), "#panic(\"unsaved\")".into())]),
+            index: false,
+        };
+        let output = evaluate(&mut runtime, &job).unwrap();
+        assert_eq!(output.output["test"][0], "disk");
+        assert_eq!(output.reads.len(), 2);
+        job.params
+            .sources
+            .insert("data.txt".into(), Some("explicit".into()));
+        let output = evaluate(&mut runtime, &job).unwrap();
+        assert_eq!(output.output["test"][0], "explicit");
+        assert_eq!(output.reads.len(), 1);
+        job.params.sources.insert("data.txt".into(), None);
+        assert!(evaluate(&mut runtime, &job).is_err());
+        job.params.detached = false;
+        assert!(evaluate(&mut runtime, &job).is_err());
+        Ok(())
     }
 }

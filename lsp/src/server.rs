@@ -184,7 +184,7 @@ pub fn run(connection: &Connection, root: Option<PathBuf>, options: WorldOptions
             "definitionProvider": true,
             "referencesProvider": true,
             "codeActionProvider": config.code_actions,
-            "executeCommandProvider": {"commands": ["zettyp.eval"]}
+            "executeCommandProvider": {"commands": ["zettyp.eval", "zettyp.evalDetached"]}
         },
         "serverInfo": {"name": "zettyp-lsp", "version": env!("CARGO_PKG_VERSION")}
     }))?;
@@ -327,7 +327,10 @@ impl Server<'_> {
                 let parsed = (|| -> Result<EvalParams> {
                     let params: ExecuteCommandParams = serde_json::from_value(params)?;
                     ensure!(
-                        params.command == "zettyp.eval",
+                        matches!(
+                            params.command.as_str(),
+                            "zettyp.eval" | "zettyp.evalDetached"
+                        ),
                         "unsupported command: {}",
                         params.command
                     );
@@ -335,8 +338,13 @@ impl Server<'_> {
                         params.arguments.len() == 1,
                         "zettyp.eval expects one object with entry and optional inputs"
                     );
-                    let evaluation: EvalParams =
+                    let mut evaluation: EvalParams =
                         serde_json::from_value(params.arguments.into_iter().next().unwrap())?;
+                    evaluation.detached = params.command == "zettyp.evalDetached";
+                    ensure!(
+                        evaluation.detached || evaluation.sources.is_empty(),
+                        "sources require zettyp.evalDetached"
+                    );
                     evaluation.validate()?;
                     Ok(evaluation)
                 })();
@@ -540,7 +548,11 @@ impl Server<'_> {
         } else {
             return Ok(());
         };
-        let sources = self.sources();
+        let sources = if params.detached {
+            BTreeMap::new()
+        } else {
+            self.sources()
+        };
         self.worker.jobs.send(Job {
             params,
             sources,
@@ -634,6 +646,7 @@ impl Server<'_> {
                         "revision": output.revision,
                         "output": output.output,
                         "warnings": output.warnings,
+                        "reads": output.reads,
                         "versions": self.view().versions,
                     })
                 });
