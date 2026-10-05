@@ -127,17 +127,31 @@ fn rpc_evaluates_then_shuts_down() {
         serde_json::from_str(&response).unwrap()
     };
     let first = call(1, "eval", json!({"entry": "main.typ"}));
-    assert_eq!(
-        first["result"],
-        json!({"revision": 1, "output": {"demo": [1]}, "warnings": []})
-    );
+    assert_eq!(first["result"]["output"], json!({"demo": [1]}));
+    assert_eq!(first["result"]["revision"], 1);
+    assert_eq!(first["result"]["warnings"], json!([]));
+    assert_eq!(first["result"]["reads"].as_object().unwrap().len(), 2);
     fs::write(fixture.0.join("dep.typ"), "#let value = 2").unwrap();
     let second = call(2, "eval", json!({"entry": "main.typ"}));
     assert_eq!(second["result"]["output"], json!({"demo": [2]}));
     assert_eq!(second["result"]["revision"], 2);
+    let overlay = call(
+        3,
+        "eval",
+        json!({"entry": "main.typ", "sources": {"dep.typ": "#let value = 3"}}),
+    );
+    assert_eq!(overlay["result"]["output"], json!({"demo": [3]}));
+    assert!(overlay["result"]["reads"].get("dep.typ").is_none());
+    let deleted = call(
+        4,
+        "eval",
+        json!({"entry": "main.typ", "sources": {"dep.typ": null}}),
+    );
+    assert_eq!(deleted["error"]["code"], -32001);
+    assert!(deleted["error"]["data"]["reads"].get("dep.typ").is_none());
     assert_eq!(
-        call(3, "shutdown", json!({})),
-        json!({"jsonrpc": "2.0", "id": 3, "result": null})
+        call(5, "shutdown", json!({})),
+        json!({"jsonrpc": "2.0", "id": 5, "result": null})
     );
     assert!(process.0.wait().unwrap().success());
     assert!(!socket.exists());

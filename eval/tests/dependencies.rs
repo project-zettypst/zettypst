@@ -178,3 +178,20 @@ fn transaction_reads_cover_sources_data_and_negative_reads() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn absent_data_files_are_negative_reads() -> Result<()> {
+    for body in [
+        "#announce(read(\"absent.txt\"))",
+        "#announce(toml(\"absent.txt\"))",
+    ] {
+        let (_root, mut runtime) = fixture(body)?;
+        let result = runtime.evaluate("main.typ", Dict::new())?;
+        assert!(result.result.output.is_err());
+        assert_eq!(
+            result.reads.get(std::path::Path::new("absent.txt")),
+            Some(&None)
+        );
+    }
+    Ok(())
+}
