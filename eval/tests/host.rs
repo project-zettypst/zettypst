@@ -86,6 +86,18 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     let registered = fs::read_to_string(root.path().join(".zettypst/source.toml"))?;
     assert!(registered.starts_with("# Registered notes\n"), "{registered}");
     assert!(registered.contains(&format!("note/{id}.typ")), "{registered}");
+    let note = root.path().join(format!("note/{id}.typ"));
+    let body = fs::read_to_string(&note)?;
+    fs::write(&note, format!("{body}\n@{id}\n"))?;
+    let selfref = runtime.evaluate(
+        ".zettypst/host/delete.typ",
+        inputs(serde_json::json!({"id": id})),
+    )?;
+    assert!(
+        selfref.result.output.is_ok(),
+        "a self-reference is not incoming: {:?}",
+        selfref.result.output
+    );
     let welcome = root.path().join("note/welcome.typ");
     let old = fs::read_to_string(&welcome)?;
     fs::write(&welcome, format!("{old}\n@{id}\n"))?;

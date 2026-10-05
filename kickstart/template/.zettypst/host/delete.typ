@@ -10,7 +10,8 @@
 #let note = matches.first()
 #assert.eq(state.project.notes.filter(it => it.path == note.path).len(), 1,
   message: "delete requires a source containing exactly one node")
-#let incoming = state.project.state.graph.edges.values().filter(edge => edge.target == req.id)
+#let incoming = state.project.state.graph.edges.values().filter(
+  edge => edge.target == req.id and edge.source != req.id)
 #assert(force or incoming.len() == 0, message: "node has incoming edges; force is required")
 #let before = read("/" + manifest)
 #let paths = toml(bytes(before)).paths
