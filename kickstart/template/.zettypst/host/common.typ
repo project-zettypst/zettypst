@@ -31,7 +31,12 @@
   assert.eq(state.final.status, "available", message: "semantic evaluation failed")
   project-lib.project-notes(state.project, state.final.value)
 }
-#let manifest-text(paths) = "paths = [" + paths.map(json.encode).join(", ") + "]\n"
+// Rewrites only the paths array, preserving comments and other settings.
+#let manifest-text(before, paths) = {
+  let assignment = regex("(?m)^paths\\s*=\\s*\\[[^\\]]*\\]")
+  assert.eq(before.matches(assignment).len(), 1, message: "manifest needs exactly one paths array")
+  before.replace(assignment, "paths = [" + paths.map(json.encode).join(", ") + "]")
+}
 #let verification(entry, intent, baseline) = (
   entry: ".zettypst/host/" + entry + ".typ",
   inputs: ("host.request": json.encode(intent + (baseline: baseline))),

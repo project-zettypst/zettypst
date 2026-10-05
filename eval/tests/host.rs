@@ -36,6 +36,8 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
         )?;
     }
     copy(&repo.join("kickstart/template"), root.path())?;
+    let manifest = "# Registered notes\npaths = [\"note/welcome.typ\"]\n";
+    fs::write(root.path().join(".zettypst/source.toml"), manifest)?;
     let mut runtime = Runtime::new_with_options(
         root.path(),
         WorldOptions {
@@ -76,11 +78,14 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     assert_eq!(output["host.node"].as_array().unwrap().len(), 1);
     assert_eq!(
         fs::read_to_string(root.path().join(".zettypst/source.toml"))?,
-        "paths = [\"note/welcome.typ\"]\n"
+        manifest
     );
     for (path, content) in sources {
         fs::write(root.path().join(path), content.unwrap())?;
     }
+    let registered = fs::read_to_string(root.path().join(".zettypst/source.toml"))?;
+    assert!(registered.starts_with("# Registered notes\n"), "{registered}");
+    assert!(registered.contains(&format!("note/{id}.typ")), "{registered}");
     let welcome = root.path().join("note/welcome.typ");
     let old = fs::read_to_string(&welcome)?;
     fs::write(&welcome, format!("{old}\n@{id}\n"))?;

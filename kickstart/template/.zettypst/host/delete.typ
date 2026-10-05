@@ -12,11 +12,12 @@
   message: "delete requires a source containing exactly one node")
 #let incoming = state.project.state.graph.edges.values().filter(edge => edge.target == req.id)
 #assert(force or incoming.len() == 0, message: "node has incoming edges; force is required")
-#let paths = toml("/" + manifest).paths
+#let before = read("/" + manifest)
+#let paths = toml(bytes(before)).paths
 #eval.announce(<host.plan>, host.plan(
   (
     host.delete(note.path, read("/" + note.path)),
-    host.replace(manifest, read("/" + manifest), manifest-text(paths.filter(path => path != note.path))),
+    host.replace(manifest, before, manifest-text(before, paths.filter(path => path != note.path))),
   ),
   verification("delete-verify", (id: req.id, path: note.path), state.errors),
 ))

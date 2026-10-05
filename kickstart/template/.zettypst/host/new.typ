@@ -5,14 +5,15 @@
 #let state = snapshot()
 #let id = str(project-lib.allocate-id(now(req.now), state.project.state.graph.nodes))
 #let path = "note/" + id + ".typ"
-#let paths = toml("/" + manifest).paths
+#let before = read("/" + manifest)
+#let paths = toml(bytes(before)).paths
 #assert(path not in paths, message: "new path is already registered")
 // Plain text is inserted as a string expression, never as executable markup.
 #let content = "#import \"../.zettypst/lib.typ\": *\n#show: zettel\n\n= #text(" + repr(req.title) + ") <" + id + ">\n"
 #eval.announce(<host.plan>, host.plan(
   (
     host.create(path, content),
-    host.replace(manifest, read("/" + manifest), manifest-text(paths + (path,))),
+    host.replace(manifest, before, manifest-text(before, paths + (path,))),
   ),
   verification("new-verify", (id: id, path: path, title: req.title), state.errors),
 ))

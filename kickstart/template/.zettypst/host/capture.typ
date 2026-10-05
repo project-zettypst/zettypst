@@ -6,7 +6,7 @@
 #let register-note(path) = {
   let before = read-file(manifest)
   let paths = toml.decode(before).paths
-  (host.replace(manifest, before, manifest-text(paths + (path,))),)
+  (host.replace(manifest, before, manifest-text(before, paths + (path,))),)
 }
 #eval.announce(<host.plan>, capture.plan(host.request(),
   nodes: notes(state), settings: settings, read-file: read-file,
