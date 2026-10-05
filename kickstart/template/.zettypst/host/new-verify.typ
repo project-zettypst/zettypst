@@ -1,0 +1,10 @@
+#import "common.typ": *
+#let intent = host.request()
+#let state = snapshot()
+#check-errors(state, intent.baseline)
+#let matches = notes(state).filter(note => note.id == intent.id)
+#assert.eq(matches.len(), 1, message: "new node must exist exactly once")
+#let note = matches.first()
+#assert.eq(note.path, intent.path)
+#assert.eq(project-lib.display-value(note.title), intent.title)
+#announce-node(note)
