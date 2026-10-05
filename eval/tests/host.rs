@@ -54,6 +54,7 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     let plan = runtime.evaluate(".zettypst/host/new.typ", inputs(request))?;
     let value = serde_json::to_value(plan.result.output.as_ref().unwrap())?;
     let plan = &value["host.plan"][0];
+    assert_eq!(plan["result"], serde_json::json!({}));
     let mut sources = BTreeMap::new();
     for effect in plan["effects"].as_array().unwrap() {
         sources.insert(
@@ -84,8 +85,14 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
         fs::write(root.path().join(path), content.unwrap())?;
     }
     let registered = fs::read_to_string(root.path().join(".zettypst/source.toml"))?;
-    assert!(registered.starts_with("# Registered notes\n"), "{registered}");
-    assert!(registered.contains(&format!("note/{id}.typ")), "{registered}");
+    assert!(
+        registered.starts_with("# Registered notes\n"),
+        "{registered}"
+    );
+    assert!(
+        registered.contains(&format!("note/{id}.typ")),
+        "{registered}"
+    );
     let note = root.path().join(format!("note/{id}.typ"));
     let body = fs::read_to_string(&note)?;
     fs::write(&note, format!("{body}\n@{id}\n"))?;
@@ -138,11 +145,26 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
         sources,
     )?;
     assert!(result.result.output.is_ok(), "{:?}", result.result.output);
+    fs::write(
+        root.path().join("result.typ"),
+        r#"#import "@preview/zettyp-core:0.1.0": eval
+#import "@preview/zettyp-host:0.1.0" as host
+#eval.announce(<host.plan>, host.plan((), (entry: "verify.typ", inputs: (:)),
+  result: (created: false, key: none, nested: (values: (1, "value")))))"#,
+    )?;
+    let result = runtime.evaluate("result.typ", Dict::new())?;
+    let output = serde_json::to_value(result.result.output.as_ref().unwrap())?;
+    assert_eq!(
+        output["host.plan"][0]["result"],
+        serde_json::json!({"created": false, "key": null, "nested": {"values": [1, "value"]}})
+    );
     for expr in [
         "host.node(1, \"x\", [x], (:))",
         "host.node(\"x\", \"x\", [x], (nested: ([x],)))",
         "host.create(\"../escape\", \"x\")",
         "host.plan((), (entry: \"x.typ\", inputs: (a: 1)))",
+        "host.plan((), (entry: \"x.typ\", inputs: (:)), result: ())",
+        "host.plan((), (entry: \"x.typ\", inputs: (:)), result: (nested: ([x],)))",
     ] {
         fs::write(
             root.path().join("bad.typ"),

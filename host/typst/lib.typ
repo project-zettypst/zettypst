@@ -39,7 +39,7 @@
   assert(type(before) == str)
   (kind: "delete", path: (host-path)(path), before: before)
 }
-#let plan(effects, verify) = {
+#let plan(effects, verify, result: (:)) = {
   assert(type(effects) == array)
   for effect in effects {
     assert(type(effect) == dictionary)
@@ -52,7 +52,8 @@
   assert(type(verify) == dictionary)
   let _ = path(verify.entry)
   assert(type(verify.inputs) == dictionary and verify.inputs.values().all(it => type(it) == str))
-  (effects: effects, verify: verify)
+  assert(type(result) == dictionary and pure(result), message: "result must be a pure data dictionary")
+  (effects: effects, verify: verify, result: result)
 }
 
 #let request() = {
