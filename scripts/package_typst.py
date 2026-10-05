@@ -79,7 +79,7 @@ def assemble(source: Path, package_path: Path, *, link: bool = False) -> Path:
 
 
 def main() -> None:
-    for source in (ROOT / "core", ROOT / "lsp/typst"):
+    for source in (ROOT / "core", ROOT / "lsp/typst", ROOT / "host/typst"):
         print(assemble(source, ROOT / ".dev/dist"))
 
 

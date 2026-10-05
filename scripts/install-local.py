@@ -38,7 +38,7 @@ def main() -> None:
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     package_path = root / ".dev" / "packages"
-    for directory in ("core", "lsp/typst", "site/typst"):
+    for directory in ("core", "lsp/typst", "site/typst", "host/typst"):
         install(root / directory, package_path, link=args.link)
     print(f"Package path: {package_path}")
 
