@@ -6,4 +6,5 @@ authors = ["Xinyu Xiang"]
 license = "MIT"
 repository = "https://github.com/Project-ZetTypst/ZetTypst"
 compiler = "0.14.2"
-description = "Pure node and file transition contracts for external consumers."
+description = "Construct create, replace and delete file plans for external consumers."
+keywords = ["host", "plan", "provenance"]
