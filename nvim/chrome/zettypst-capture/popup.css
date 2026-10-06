@@ -1,0 +1,145 @@
+/* Popup: the ZetTypst site's paper style (Forester + workspace.css). */
+
+@font-face {
+  font-display: swap;
+  font-family: "Inria Sans";
+  font-style: normal;
+  font-weight: 300;
+  src: url("fonts/inria-sans-v14-latin_latin-ext-300.woff2") format("woff2");
+}
+@font-face {
+  font-display: swap;
+  font-family: "Inria Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("fonts/inria-sans-v14-latin_latin-ext-regular.woff2") format("woff2");
+}
+@font-face {
+  font-display: swap;
+  font-family: "Inria Sans";
+  font-style: normal;
+  font-weight: 700;
+  src: url("fonts/inria-sans-v14-latin_latin-ext-700.woff2") format("woff2");
+}
+
+:root {
+  --zk-ink: #111;
+  --zk-muted: #808080;
+  --zk-rule: rgba(0, 0, 0, 0.09);
+  --zk-tint: rgba(0, 100, 255, 0.04);
+  --zk-hover: rgba(0, 100, 255, 0.1);
+  --zk-paper: #fff;
+  --radius: 5px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 300px;
+  margin: 0;
+  color: var(--zk-ink);
+  background: var(--zk-paper);
+  font-family: "Inria Sans", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+button:disabled { cursor: default; opacity: 0.45; }
+button:focus-visible { outline: 1px dotted var(--zk-muted); outline-offset: 2px; }
+
+/* ---- Bar ---------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid #dadada;
+}
+.logo { font-weight: 1000; font-size: 17px; color: #666; }
+
+.link.muted { color: var(--zk-muted); font-weight: 300; font-size: 0.9em; }
+
+/* ---- Source ------------------------------------------------------------- */
+
+main { padding: 14px 16px 12px; }
+
+.taxon {
+  display: block;
+  color: #888;
+  font-weight: bolder;
+  font-size: 0.8em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0.1em 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.slug {
+  margin: 0.15em 0 0;
+  color: var(--zk-muted);
+  font-weight: 300;
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Actions: a link list ----------------------------------------------- */
+
+.actions {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--zk-rule);
+}
+.actions li {
+  margin: 0.15em -5px;
+  padding: 0 5px;
+  border-radius: var(--radius);
+}
+.actions li:hover { background: var(--zk-tint); }
+
+.link {
+  text-align: left;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.18em;
+  border-radius: 2px;
+}
+.link:hover:not(:disabled) { background: var(--zk-hover); }
+#auto { font-weight: 700; }
+
+/* ---- Status ------------------------------------------------------------- */
+
+.status {
+  min-height: 1.55em;
+  margin: 10px 0 0;
+  color: var(--zk-muted);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.status:empty { display: none; }
+.status[data-state="ok"],
+.status[data-state="error"] { color: var(--zk-ink); }
+.status .key { color: var(--zk-muted); font-weight: 300; }
+.status .detail { display: block; color: var(--zk-muted); font-weight: 300; }

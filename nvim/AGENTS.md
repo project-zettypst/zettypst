@@ -1,0 +1,2 @@
+- Follow **Conventional Commits** and keep commits atomic.
+- README files are **human-edited only**. Agents MUST NOT edit them.

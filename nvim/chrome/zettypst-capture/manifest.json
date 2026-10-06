@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "ZetTypst Capture",
+  "description": "Capture web pages and PDFs into a local ZetTypst project.",
+  "version": "0.3.0",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "downloads",
+    "nativeMessaging",
+    "notifications",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "ZetTypst Capture",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA24krHnYIGzZ1Gwc4qPxeIkU2FRoFFkCHjbmo0L/RZ8WZyMEcT7bNGfoRD7IeSj1VbE6AsMbdkJwBYo2uJdUoGWheGj1bhyh4qPtKtb8flHlf9AsxnwhNhk0I0oQDGX2P5FidEA+77xDKNTBmNg7eYTqpWt3NcVUr3oRJVfk1jKC4OuvS/RJU6qZMwS0XCbqdHaykDA/a0cO83tam1MWr3sZ0385YKlNo9weI0jmySSKesDcObHHgYgSfVxtX219wjkx2GkSU5wHucTMlWlaQKkiXL9KHzv3ifREpAwRmSs5GmrRjoVpFH16nkEg0I/rf6zfQ4baLwC3CTy4lky5USwIDAQAB",
+  "icons": {
+    "128": "icon.png"
+  }
+}

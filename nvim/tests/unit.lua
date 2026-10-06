@@ -1,0 +1,6 @@
+dofile("tests/nodes.lua")
+dofile("tests/executor.lua")
+dofile("tests/root.lua")
+dofile("tests/transport.lua")
+dofile("tests/commands.lua")
+dofile("tests/translator.lua")

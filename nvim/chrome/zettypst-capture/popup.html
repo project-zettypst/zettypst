@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="logo">ZetTypst</span>
+      <button type="button" class="link muted" id="ping">check host</button>
+    </header>
+
+    <main>
+      <section class="source">
+        <span class="taxon" id="kind">Page</span>
+        <h1 id="title">Current tab</h1>
+        <p class="slug" id="url"></p>
+      </section>
+
+      <ul class="actions">
+        <li><button type="button" class="link" id="auto">Capture this tab</button></li>
+        <li><button type="button" class="link" id="page">Capture as web page</button></li>
+        <li><button type="button" class="link" id="pdf">Capture as PDF</button></li>
+      </ul>
+
+      <p class="status" id="status" aria-live="polite"></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
