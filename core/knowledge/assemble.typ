@@ -1,5 +1,6 @@
 /// Assemble local knowledge observations using the common graph machinery.
 #import "../graph.typ"
+#import "schema.typ"
 
 /// Returns (state, origins, data, unclassified, issues).
 ///
@@ -10,6 +11,16 @@
 /// unclassified: they may denote anchors, bibliography entries, or missing
 /// knowledge nodes. Their absence alone is not a broken-link diagnosis.
 #let assemble(locals) = {
+  let locals = schema.checked(locals, schema.locals)
+  for item in locals {
+    for reference in item.references {
+      assert(
+        reference.source == item.node.id,
+        message: "reference source does not match its local node: "
+          + reference.id,
+      )
+    }
+  }
   let ids = locals.map(item => item.node.id)
   let references = locals.map(item => item.references).flatten()
   let internal = references.filter(item => item.target in ids)
