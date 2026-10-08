@@ -1,3 +1,4 @@
 - Follow **Conventional Commits** and keep commits atomic.
+- After editing Typst files, format the touched files with `typstyle` using its default configuration and verify them with `typstyle --check`.
 - README files are **human-edited only**. Agents MUST NOT edit them.
 - Read the `core` module and understand its abstractions before making changes. Do not modify `core` for downstream feature work. If a `core` change is justified, pause and obtain user approval before proceeding.
