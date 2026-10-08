@@ -1,39 +1,25 @@
 /// Local observations: reusable definitions, address bindings, and collection.
 #import "result.typ"
-#import "../graph.typ"
+#import "schema.typ"
 
 /// Branches share the caller's chosen observation space.
 /// Construction executes neither branch; error interpretation is explicit.
-#let definition(observe, on-error: none) = {
-  assert(type(observe) == function, message: "observer must be a function")
-  assert(
-    type(on-error) == function,
-    message: "error observer must be a function",
-  )
-  (observe: observe, on-error: on-error)
-}
+#let definition(observe, on-error: none) = schema.checked(
+  (observe: observe, on-error: on-error),
+  schema.observer,
+)
 
 /// Names identify observations, not computation vertices.
 /// Several observations may consume the same vertex without adding DAG nodes.
-#let binding(name, definition, at: none, origin: none) = {
-  graph.require-id(name)
-  graph.require-id(at)
-  assert(
-    type(definition) == dictionary
-      and type(definition.at("observe", default: none)) == function
-      and type(definition.at("on-error", default: none)) == function,
-    message: "binding requires an observation definition",
-  )
-  (name: name, definition: definition, at: at, origin: origin)
-}
+#let binding(name, definition, at: none, origin: none) = schema.checked(
+  (name: name, definition: definition, at: at, origin: origin),
+  schema.binding,
+)
 
 /// Resolve all addresses before lifting. No observation is executed.
 /// Structural issues produce no partial plan; preservation is not required.
 #let compile(program, bindings) = {
-  assert(
-    type(bindings) == array,
-    message: "observation bindings must be an array",
-  )
+  let bindings = schema.checked(bindings, schema.bindings)
   let issues = ()
   for (index, binding) in bindings.enumerate() {
     if bindings.slice(0, index).any(previous => previous.name == binding.name) {

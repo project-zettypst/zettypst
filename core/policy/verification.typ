@@ -1,18 +1,12 @@
 /// Explicit checking of observation reuse along every relevant dependency path.
 #import "preservation.typ"
-#import "../graph.typ"
+#import "schema.typ"
 
 /// A claim adds no execution dependency and performs no proof work.
-#let claim(binding, target, origin: none) = {
-  graph.require-id(target)
-  graph.require-id(binding.name)
-  graph.require-id(binding.at)
-  assert(
-    type(binding.definition.observe) == function,
-    message: "preservation claim requires a business observer",
-  )
-  (binding: binding, target: target, origin: origin)
-}
+#let claim(binding, target, origin: none) = schema.checked(
+  (binding: binding, target: target, origin: origin),
+  schema.claim,
+)
 
 // Each port is a separate edge, even when several ports share a source.
 #let edges(wiring) = (
@@ -95,7 +89,7 @@
 /// vertices have no preservation path. Only success semantics are proved:
 /// neither availability nor invariance of error diagnostics is promised.
 #let verify(program, claims) = {
-  assert(type(claims) == array, message: "preservation claims must be an array")
+  let claims = schema.checked(claims, schema.claims)
   let location(claim) = (
     observation: claim.binding.name,
     at: claim.binding.at,

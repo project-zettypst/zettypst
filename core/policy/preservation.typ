@@ -1,5 +1,6 @@
 /// Exhaustive local preservation of a business observation on successful states.
 #import "../semantic.typ"
+#import "schema.typ"
 
 // Cartesian powers include repeated states and preserve argument order.
 #let arguments(states, count) = range(count).fold(((),), (tuples, _) => (
@@ -7,10 +8,10 @@
 ))
 
 #let inspect(definition, observer, contract, inputs, port) = {
-  let issues = (definition.check)(inputs)
-  assert(
-    type(issues) == array,
-    message: "policy check must return an issue array",
+  let issues = schema.checked(
+    (definition.check)(inputs),
+    schema.issues,
+    scope: ("check",),
   )
   if issues.len() > 0 { return (admissible: false, issue: none) }
   let output = semantic.checked(contract, (definition.run)(inputs))
@@ -36,9 +37,11 @@
 /// Rejected inputs are excluded; contract violations and user panics propagate.
 /// No admissible inputs produces no evidence, despite vacuous preservation.
 #let check(definition, observer, contract, port: 0) = {
-  assert(type(observer) == function, message: "observer must be a function")
+  let definition = schema.checked(definition, schema.definition)
+  let observer = schema.checked(observer, schema.callable, scope: ("observer",))
+  let port = schema.checked(port, schema.index, scope: ("port",))
   assert(
-    type(port) == int and port >= 0 and port < definition.arity,
+    port < definition.arity,
     message: "preservation port is outside policy inputs",
   )
   let results = arguments(semantic.states(contract), definition.arity).map(

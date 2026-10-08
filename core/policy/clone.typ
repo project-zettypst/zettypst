@@ -5,25 +5,25 @@
 /// All operations share one carrier by convention. Values remain opaque;
 /// equality of operations means equality of results, not closure identity.
 
+#import "schema.typ"
+
 #let require-arity(n) = {
-  assert(
-    type(n) == int and n >= 0,
-    message: "arity must be a non-negative integer",
-  )
+  let _ = schema.checked(n, schema.arity, scope: ("arity",))
 }
 
 /// Introduce a generator. The implementation receives one argument array.
 /// This constructor adds no composition or carrier-specific semantics.
 #let operation(n, implementation) = {
   require-arity(n)
-  assert(
-    type(implementation) == function,
-    message: "operation implementation must be a function",
+  let implementation = schema.checked(
+    implementation,
+    schema.callable,
+    scope: ("implementation",),
   )
   (
     arity: n,
     apply: arguments => {
-      assert(type(arguments) == array, message: "arguments must be an array")
+      let arguments = schema.checked(arguments, schema.arguments)
       assert(arguments.len() == n, message: "operation arity mismatch")
       implementation(arguments)
     },
@@ -33,8 +33,9 @@
 /// The i-th projection in an n-input context; indices are zero-based.
 #let projection(n, i) = {
   require-arity(n)
+  let i = schema.checked(i, schema.index, scope: ("index",))
   assert(
-    type(i) == int and i >= 0 and i < n,
+    i < n,
     message: "projection index is outside its input context",
   )
   operation(n, arguments => arguments.at(i))
@@ -45,13 +46,9 @@
 /// A morphism is not an operation whose carrier value happens to be an array.
 #let tuple(m, operations) = {
   require-arity(m)
-  assert(type(operations) == array, message: "outputs must be an array")
+  let operations = schema.checked(operations, schema.operations)
   assert(
-    operations.all(op => (
-      type(op) == dictionary
-        and op.at("arity", default: none) == m
-        and type(op.at("apply", default: none)) == function
-    )),
+    operations.all(op => op.arity == m),
     message: "outputs must be operations with the same input arity",
   )
   (arity: m, outputs: operations)
@@ -61,8 +58,8 @@
 /// G: n -> m and f in T(m) yield an operation in T(n).
 /// Empty substitution retains G's input context for nullary operations.
 #let bind(f, G) = {
-  // Reuse tuple validation for both the operation and the substitution family.
-  let _ = tuple(f.arity, (f,))
+  let f = schema.checked(f, schema.operation, scope: ("operation",))
+  let G = schema.checked(G, schema.morphism, scope: ("substitutions",))
   let substitutions = tuple(G.arity, G.outputs)
   assert(
     substitutions.outputs.len() == f.arity,

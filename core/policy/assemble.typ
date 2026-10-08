@@ -1,5 +1,6 @@
 /// Resolve invocation declarations into addressable, acyclic wiring.
 #import "../graph.typ"
+#import "schema.typ"
 
 // Scheduling uses dependency sets; invocation ports retain order and repeats.
 // A stalled remainder includes cycles and descendants waiting on those cycles.
@@ -41,11 +42,8 @@
 /// All identities share one namespace. Forward references and unused nodes
 /// are valid. No definition is executed and no semantic contract is required.
 #let assemble(calls, inputs: ()) = {
-  assert(type(calls) == array, message: "invocations must be an array")
-  assert(type(inputs) == array, message: "external inputs must be an array")
-  for id in inputs {
-    graph.require-id(id)
-  }
+  let calls = schema.checked(calls, schema.invocations, scope: ("calls",))
+  let inputs = schema.checked(inputs, schema.identities, scope: ("inputs",))
   let declarations = inputs.map(id => (id: id, origin: none)) + calls
   let ids = declarations.map(item => item.id)
   let issues = graph.duplicate-issues(declarations, "duplicate-identity")

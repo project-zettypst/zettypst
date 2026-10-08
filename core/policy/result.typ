@@ -5,32 +5,24 @@
 #import "../graph.typ"
 #import "clone.typ"
 #import "sum.typ"
+#import "schema.typ"
 
 #let success(contract, state) = sum.left(semantic.checked(contract, state))
 
 #let failure(id, issues) = {
-  graph.require-id(id)
-  assert(
-    type(issues) == array and issues.len() > 0,
-    message: "failure requires a non-empty issue array",
+  let error = schema.checked(
+    (kind: "failure", invocation: id, issues: issues),
+    schema.failure,
   )
-  sum.right((kind: "failure", invocation: id, issues: issues.dedup()))
+  sum.right(error + (issues: error.issues.dedup()))
 }
 
 #let blocked(id, dependencies) = {
-  graph.require-id(id)
-  assert(
-    type(dependencies) == array and dependencies.len() > 0,
-    message: "blocked requires unavailable input identities",
+  let error = schema.checked(
+    (kind: "blocked", invocation: id, dependencies: dependencies),
+    schema.blocked,
   )
-  for source in dependencies {
-    graph.require-id(source)
-  }
-  sum.right((
-    kind: "blocked",
-    invocation: id,
-    dependencies: dependencies.dedup().sorted(),
-  ))
+  sum.right(error + (dependencies: error.dependencies.dedup().sorted()))
 }
 
 /// Check carrier membership, not policy applicability.
@@ -39,21 +31,12 @@
   let validate = sum.merge(
     state => success(contract, state),
     error => {
-      assert(type(error) == dictionary, message: "expected an invocation error")
-      let kind = error.at("kind", default: none)
-      if kind == "failure" {
-        assert(
-          semantic.same-keys(error, ("kind", "invocation", "issues")),
-          message: "invalid failure error",
-        )
-        return failure(error.invocation, error.issues)
+      let error = schema.checked(error, schema.error, scope: ("error",))
+      if error.kind == "failure" {
+        failure(error.invocation, error.issues)
+      } else {
+        blocked(error.invocation, error.dependencies)
       }
-      assert(kind == "blocked", message: "unknown invocation error kind")
-      assert(
-        semantic.same-keys(error, ("kind", "invocation", "dependencies")),
-        message: "invalid blocked error",
-      )
-      blocked(error.invocation, error.dependencies)
     },
   )
   validate(result)
@@ -71,7 +54,7 @@
 /// Preserve repeated errors; blocked determines producer deduplication.
 /// Empty inputs yield a successful empty tuple for nullary policies.
 #let collect-inputs(inputs) = {
-  assert(type(inputs) == array, message: "policy inputs must be an array")
+  let inputs = schema.checked(inputs, schema.sums, scope: ("inputs",))
   let append = sum.merge(
     states => sum.merge(
       state => sum.left(states + (state,)),
@@ -90,12 +73,13 @@
 /// check; only an empty check result reaches run. Contract panics propagate.
 #let lift(contract, id, definition) = {
   graph.require-id(id)
+  let definition = schema.checked(definition, schema.definition)
   let execute = sum.merge(
     states => {
-      let issues = (definition.check)(states)
-      assert(
-        type(issues) == array,
-        message: "policy check must return an issue array",
+      let issues = schema.checked(
+        (definition.check)(states),
+        schema.issues,
+        scope: ("check",),
       )
       if issues.len() > 0 { return failure(id, issues) }
       success(contract, (definition.run)(states))
