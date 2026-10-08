@@ -10,9 +10,13 @@
   final: -10,
 )
 #let number(value) = numbers.values().find(member => member.value == value)
-#let initial = graph.assemble((
-  graph.fragment(nodes: (graph.node("note", value: numbers.initial),)),
-)).state
+#let initial = (
+  graph
+    .assemble((
+      graph.fragment(nodes: (graph.node("note", value: numbers.initial),)),
+    ))
+    .state
+)
 #let contract = semantic.contract(
   initial,
   registry: vocabulary.registry(number: numbers),
