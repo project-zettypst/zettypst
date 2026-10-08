@@ -7,11 +7,14 @@
   let project = project-lib.load()
   assert.eq(project.issues, (), message: "knowledge assembly failed")
   let result = project-lib.evaluate(project)
-  let final = project-lib.final-observation(result.flow, result.execution)
-  let errors = result.execution.results.values()
-    .filter(it => it.status == "failure")
-    .map(it => it.issues).flatten()
-    .map(it => repr((code: str(it.code), message: it.message, occurrences: it.occurrences)))
+  let final = project-lib.final-observation(result.program, result.execution)
+  let errors = project-lib
+    .evaluation-issues(result.execution)
+    .map(it => repr((
+      code: str(it.code),
+      message: it.message,
+      occurrences: it.occurrences,
+    )))
   (project: project, final: final, errors: errors)
 }
 #let check-errors(state, baseline) = {
@@ -25,17 +28,29 @@
 }
 #let announce-node(note) = eval.announce(
   <host.node>,
-  host.node(note.id, project-lib.display-value(note.title), note.origin, note.metadata),
+  host.node(
+    note.id,
+    project-lib.display-value(note.title),
+    note.origin,
+    note.metadata,
+  ),
 )
 #let notes(state) = {
-  assert.eq(state.final.status, "available", message: "semantic evaluation failed")
-  project-lib.project-notes(state.project, state.final.value)
+  assert(state.final != none, message: "semantic evaluation failed")
+  project-lib.project-notes(state.project, state.final)
 }
 // Rewrites only the paths array, preserving comments and other settings.
 #let manifest-text(before, paths) = {
   let assignment = regex("(?m)^paths\\s*=\\s*\\[[^\\]]*\\]")
-  assert.eq(before.matches(assignment).len(), 1, message: "manifest needs exactly one paths array")
-  before.replace(assignment, "paths = [" + paths.map(json.encode).join(", ") + "]")
+  assert.eq(
+    before.matches(assignment).len(),
+    1,
+    message: "manifest needs exactly one paths array",
+  )
+  before.replace(
+    assignment,
+    "paths = [" + paths.map(json.encode).join(", ") + "]",
+  )
 }
 #let verification(entry, intent, baseline) = (
   entry: ".zettypst/host/" + entry + ".typ",
@@ -43,6 +58,12 @@
 )
 #let now(value) = {
   assert(type(value) == dictionary)
-  datetime(year: value.year, month: value.month, day: value.day,
-    hour: value.hour, minute: value.minute, second: value.second)
+  datetime(
+    year: value.year,
+    month: value.month,
+    day: value.day,
+    hour: value.hour,
+    minute: value.minute,
+    second: value.second,
+  )
 }

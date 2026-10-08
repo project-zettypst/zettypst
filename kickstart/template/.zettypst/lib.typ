@@ -1,5 +1,5 @@
 #import "@preview/zettyp-core:0.1.0": (
-  eval, graph, knowledge, observation, policy, vocabulary,
+  eval, graph, knowledge, observation, policy, semantic, vocabulary,
 )
 #import "@preview/zettyp-lsp:0.1.0" as lsp
 
@@ -314,24 +314,24 @@
     project.state != none,
     message: "resolve knowledge assembly issues before evaluation",
   )
-  let lifecycle-rule = policy.function(
-    "lifecycle",
-    derive-lifecycle,
-    check: state => relation-issues(state, project.origins),
+  let contract = semantic.contract(
+    project.state,
+    registry: vocabulary.registry(lifecycle: lifecycle, relation: colors),
+  )
+  let lifecycle-rule = policy.definition(
+    1,
+    states => derive-lifecycle(states.first()),
+    check: states => relation-issues(states.first(), project.origins),
   )
   let assembled = policy.assemble(
-    ((lifecycle-rule.invoke)(inputs: ("initial",), output: "semantic"),),
+    (policy.invocation("semantic", lifecycle-rule, inputs: ("initial",)),),
     inputs: ("initial",),
-    output: "semantic",
   )
   assert.eq(assembled.issues, ())
+  let program = policy.compile(assembled.wiring, contract)
   (
-    flow: assembled.flow,
-    execution: policy.evaluate(
-      assembled.flow,
-      topology: project.state.graph,
-      inputs: (project.state,),
-    ),
+    program: program,
+    execution: policy.evaluate(program, inputs: (project.state,)),
   )
 }
 
@@ -401,15 +401,26 @@
   )
 })
 
-#let final-observation(flow, execution) = {
-  let prepared = observation.prepare(flow, (
-    observation.bind("final", observer: state => state, at: flow.output),
+// A local snapshot needs no preservation proof. Errors are published separately.
+#let final-observation(program, execution) = {
+  let observer = observation.definition(state => state, on-error: error => none)
+  let compiled = observation.compile(program, (
+    observation.binding("final", observer, at: "semantic"),
   ))
-  assert.eq(prepared.issues, ())
-  let verified = observation.verify(prepared.plan)
-  assert.eq(verified.issues, ())
-  observation.query(observation.collect(verified.plan, execution), "final")
+  assert.eq(compiled.issues, ())
+  observation
+    .query(observation.collect(compiled.plan, execution), "final")
+    .value
 }
+
+#let evaluation-issues(execution) = (
+  execution
+    .results
+    .values()
+    .filter(it => it.side == "right" and it.value.kind == "failure")
+    .map(it => it.value.issues)
+    .flatten()
+)
 
 #let announce-editor(project, execution, final) = {
   let targets = navigation(project)
@@ -424,9 +435,9 @@
       declarations: (target.definition,),
     ))
   }
-  if final.status == "available" {
+  if final != none {
     let notes = (:)
-    for note in project-notes(project, final.value) {
+    for note in project-notes(project, final) {
       notes.insert(note.id, note)
     }
     for target in targets {
@@ -463,13 +474,7 @@
       lsp.publish-diagnostics(document: origin),
     )
   }
-  let issues = execution
-    .results
-    .values()
-    .filter(it => it.status == "failure")
-    .map(it => it.issues)
-    .flatten()
-  for issue in issues {
+  for issue in evaluation-issues(execution) {
     for origin in issue.origins {
       lsp.announce(
         lsp.effect-kinds.publish-diagnostics,
@@ -491,15 +496,15 @@
 }
 
 #let announce-project(project, final) = {
-  if final.status == "available" {
+  if final != none {
     eval.announce(
       <zk.notes>,
-      project-notes(project, final.value).map(note => (
+      project-notes(project, final).map(note => (
         note + (origin: eval.inspect(note.origin))
       )),
     )
     eval.announce(<zk.graph>, (
-      state: final.value,
+      state: final,
       origins: (
         nodes: project
           .origins
@@ -525,12 +530,12 @@
   )))
 }
 
-#let publish(project, flow, execution, editor: true, export: true) = {
+#let publish(project, program, execution, editor: true, export: true) = {
   assert(
     project.state != none,
     message: "resolve knowledge assembly issues before publication",
   )
-  let final = final-observation(flow, execution)
+  let final = final-observation(program, execution)
   if editor { announce-editor(project, execution, final) }
   if export { announce-project(project, final) }
 }
@@ -555,9 +560,8 @@
 #let rendering = state("zettypst.rendering", none)
 
 #let export-html(project, result, route: route, card: card) = {
-  let final = final-observation(result.flow, result.execution)
-  assert.eq(final.status, "available", message: "semantic evaluation failed")
-  let state = final.value
+  let state = final-observation(result.program, result.execution)
+  assert(state != none, message: "semantic evaluation failed")
   let bodies = project.notes.map(it => (it.local.node.id, it.body)).to-dict()
   let notes = (:)
   for note in project-notes(project, state) {

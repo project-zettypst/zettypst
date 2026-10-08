@@ -3,10 +3,10 @@
 #let project = load()
 #assert.eq(project.issues, ())
 #let result = evaluate(project)
-#assert.eq(result.execution.output.status, "success", message: repr(
-  result.execution.output,
+#assert.eq(result.execution.results.semantic.side, "left", message: repr(
+  result.execution.results.semantic,
 ))
-#publish(project, result.flow, result.execution, editor: false)
+#publish(project, result.program, result.execution, editor: false)
 
 // Use the target heading's title for ordinary references.
 #show ref: it => {

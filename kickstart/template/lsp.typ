@@ -4,4 +4,4 @@
 #let project = load()
 #assert.eq(project.issues, ())
 #let result = evaluate(project)
-#publish(project, result.flow, result.execution, export: false)
+#publish(project, result.program, result.execution, export: false)
