@@ -2,15 +2,16 @@
 
 #let pure(value) = {
   let kind = type(value)
-  if kind == dictionary { value.values().all(pure) }
-  else if kind == array { value.all(pure) }
-  else { kind in (str, int, float, bool, type(none)) }
+  if kind == dictionary { value.values().all(pure) } else if kind == array {
+    value.all(pure)
+  } else { kind in (str, int, float, bool, type(none)) }
 }
 
 #let path(value) = {
   assert(type(value) == str, message: "path must be a string")
   assert(
-    not value.contains("\\") and not value.contains(":")
+    not value.contains("\\")
+      and not value.contains(":")
       and not value.contains("\u{0}")
       and value.split("/").all(part => part not in ("", ".", "..")),
     message: "path must be canonical and project-relative",
@@ -21,7 +22,10 @@
 #let node(id, title, origin, metadata) = {
   assert(type(id) == str and type(title) == str)
   assert(type(origin) == content)
-  assert(type(metadata) == dictionary and pure(metadata), message: "metadata must be pure data")
+  assert(
+    type(metadata) == dictionary and pure(metadata),
+    message: "metadata must be pure data",
+  )
   (id: id, title: title, origin: eval.inspect(origin), metadata: metadata)
 }
 
@@ -51,13 +55,22 @@
   }
   assert(type(verify) == dictionary)
   let _ = path(verify.entry)
-  assert(type(verify.inputs) == dictionary and verify.inputs.values().all(it => type(it) == str))
-  assert(type(result) == dictionary and pure(result), message: "result must be a pure data dictionary")
+  assert(
+    type(verify.inputs) == dictionary
+      and verify.inputs.values().all(it => type(it) == str),
+  )
+  assert(
+    type(result) == dictionary and pure(result),
+    message: "result must be a pure data dictionary",
+  )
   (effects: effects, verify: verify, result: result)
 }
 
 #let request() = {
-  let value = json.decode(sys.inputs.at("host.request"))
-  assert(type(value) == dictionary, message: "host.request must be a JSON dictionary")
+  let value = json(bytes(sys.inputs.at("host.request")))
+  assert(
+    type(value) == dictionary,
+    message: "host.request must be a JSON dictionary",
+  )
   value
 }

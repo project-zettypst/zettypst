@@ -105,7 +105,7 @@
     }
   }
   let registry-before = read-file(registry-path)
-  let registry = json.decode(registry-before)
+  let registry = json(bytes(registry-before))
   let identity = if bib != none { "bib:" + bib.key } else { "url:" + req.url }
   let prior = registry.at(identity, default: none)
   if prior == none and asset != none {
@@ -149,6 +149,6 @@
   let note = matches.first()
   assert.eq(note.path, intent.path)
   if intent.created { assert.eq(note.title, intent.title) }
-  assert.eq(json.decode(read-file(registry-path)).at(intent.identity).id, intent.id)
+  assert.eq(json(bytes(read-file(registry-path))).at(intent.identity).id, intent.id)
   note
 }
