@@ -25,8 +25,7 @@ fn successful_evaluation_matches_direct_composition() {
     let report = evaluate_fixture();
     let success = &report["success"];
     assert_eq!(success, &report["success-reordered"]);
-    assert_eq!(success["output"]["value"], report["direct"]);
-    assert_eq!(success["output"], success["results"]["final"]);
+    assert_eq!(success["results"]["final"]["value"], report["direct"]);
 
     let results = success["results"].as_object().unwrap();
     assert_eq!(results.len(), 5);
@@ -38,8 +37,9 @@ fn successful_evaluation_matches_direct_composition() {
         ("final", -10),
     ] {
         let result = &results[id];
-        assert_eq!(result["status"], "success", "product {id}");
-        assert_eq!(result["value"]["values"]["nodes"]["note"], expected);
+        assert_eq!(result["side"], "left", "product {id}");
+        assert_eq!(result["value"]["values"]["nodes"]["note"]["value"], expected);
+        assert_eq!(result["value"]["values"]["nodes"]["note"]["type"], "number");
         assert_eq!(result["value"]["graph"], report["initial"]["graph"]);
         assert_eq!(result["value"]["values"]["edges"], json!({}));
     }
@@ -58,21 +58,25 @@ fn failure_blocks_dependents_but_preserves_independent_results() {
     assert_eq!(
         results["left"],
         json!({
-            "status": "failure",
-            "issues": [{"kind": "rejected", "message": "left is unavailable"}],
+            "side": "right",
+            "value": {
+                "kind": "failure", "invocation": "left",
+                "issues": [{"kind": "rejected", "message": "left is unavailable"}],
+            },
         })
     );
     assert_eq!(
         results["merged"],
         json!({
-            "status": "blocked", "dependencies": ["left"],
+            "side": "right",
+            "value": {"kind": "blocked", "invocation": "merged", "dependencies": ["left"]},
         })
     );
     assert_eq!(
         results["final"],
         json!({
-            "status": "blocked", "dependencies": ["merged"],
+            "side": "right",
+            "value": {"kind": "blocked", "invocation": "final", "dependencies": ["merged"]},
         })
     );
-    assert_eq!(failure["output"], results["final"]);
 }

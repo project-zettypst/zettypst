@@ -1,109 +1,104 @@
-/// Assemble local calls into a dependency DAG without executing policies.
+/// Resolve invocation declarations into addressable, acyclic wiring.
 #import "../graph.typ"
 
-// Length-prefix the product identity so arbitrary product names cannot collide.
-#let binding-id(output, port) = (
-  str(output.len()) + ":" + output + ":" + str(port)
-)
-
-// Input positions remain distinct, including repeated products.
-#let call-fragment(call) = graph.fragment(
-  nodes: (
-    graph.node(call.output, value: (
-      kind: "call",
-      policy: call.policy,
-    )),
-  ),
-  edges: call
-    .inputs
-    .enumerate()
-    .map(((port, source)) => graph.edge(
-      binding-id(call.output, port),
-      source: source,
-      target: call.output,
-      value: (port: port),
-    )),
-)
-
-#let declarations(calls, inputs) = (
-  (
-    graph.fragment(nodes: inputs.map(id => (
-      graph.node(id, value: (kind: "input"))
-    ))),
-  )
-    + calls.map(call-fragment)
-)
-
-// Scheduling ignores repeated dependencies; argument ports remain in the graph.
-#let dependencies(topology) = topology.nodes.map(id => (
-  id: id,
-  inputs: topology
-    .edges
-    .values()
-    .filter(edge => edge.target == id)
-    .map(edge => edge.source)
-    .dedup(),
-))
-
-// A stalled remainder contains cycles and their blocked descendants.
-#let layers(pending) = {
-  if pending.len() == 0 { return (value: (), issues: ()) }
-  let ready = pending
-    .filter(item => item.inputs.len() == 0)
-    .map(item => item.id)
-  if ready.len() == 0 {
-    return (
-      value: none,
-      issues: (
-        (kind: "cyclic-dependencies", products: pending.map(item => item.id)),
-      ),
-    )
+// Scheduling uses dependency sets; invocation ports retain order and repeats.
+// A stalled remainder includes cycles and descendants waiting on those cycles.
+#let layers(calls, inputs) = {
+  let pending = calls.map(call => (
+    id: call.id,
+    dependencies: call.inputs.filter(id => id not in inputs).dedup(),
+  ))
+  let result = ()
+  while pending.len() > 0 {
+    let ready = pending
+      .filter(call => call.dependencies.len() == 0)
+      .map(call => call.id)
+      .sorted()
+    if ready.len() == 0 {
+      return (
+        value: none,
+        issues: (
+          (
+            kind: "cyclic-dependencies",
+            unresolved: pending.map(call => call.id).sorted(),
+          ),
+        ),
+      )
+    }
+    result.push(ready)
+    pending = pending
+      .filter(call => call.id not in ready)
+      .map(call => (
+        id: call.id,
+        dependencies: call.dependencies.filter(id => id not in ready),
+      ))
   }
-  let rest = layers(
-    pending
-      .filter(item => item.id not in ready)
-      .map(item => (
-        id: item.id,
-        inputs: item.inputs.filter(id => id not in ready),
-      )),
-  )
-  if rest.value == none { return rest }
-  (value: (ready,) + rest.value, issues: ())
+  (value: result, issues: ())
 }
 
-#let validate(assembled, inputs, output) = {
-  if output not in assembled.state.graph.nodes {
-    return (flow: none, issues: ((kind: "missing-output", product: output),))
+/// Returns (wiring, issues). Invalid structure produces no partial wiring.
+/// Inputs are ordered external identities; calls come from invocation().
+/// All identities share one namespace. Forward references and unused nodes
+/// are valid. No definition is executed and no semantic contract is required.
+#let assemble(calls, inputs: ()) = {
+  assert(type(calls) == array, message: "invocations must be an array")
+  assert(type(inputs) == array, message: "external inputs must be an array")
+  for id in inputs {
+    graph.require-id(id)
   }
-  let schedule = layers(dependencies(assembled.state.graph))
+  let declarations = inputs.map(id => (id: id, origin: none)) + calls
+  let ids = declarations.map(item => item.id)
+  let issues = graph.duplicate-issues(declarations, "duplicate-identity")
+  for call in calls {
+    if call.inputs.len() != call.definition.arity {
+      issues.push((
+        kind: "port-count-mismatch",
+        invocation: call.id,
+        expected: call.definition.arity,
+        actual: call.inputs.len(),
+        origin: call.origin,
+      ))
+    }
+    for (port, source) in call.inputs.enumerate() {
+      if source not in ids {
+        issues.push((
+          kind: "missing-input",
+          invocation: call.id,
+          port: port,
+          source: source,
+          origin: call.origin,
+        ))
+      }
+    }
+  }
+  if issues.len() > 0 { return (wiring: none, issues: issues) }
+
+  let schedule = layers(calls, inputs)
   if schedule.value == none {
-    return (flow: none, issues: schedule.issues)
+    return (wiring: none, issues: schedule.issues)
   }
+  // External input order is semantic; each ready layer uses canonical ID order.
+  let ids = inputs + schedule.value.flatten()
+  let slots = ids
+    .enumerate()
+    .fold((:), (table, pair) => {
+      let (slot, id) = pair
+      table.insert(id, slot)
+      table
+    })
+  let definitions = graph.index-by-id(calls, call => (
+    definition: call.definition,
+    ports: call.inputs.map(id => slots.at(id)),
+  ))
   (
-    flow: (
-      state: assembled.state,
-      origins: assembled.origins,
+    wiring: (
       inputs: inputs,
-      output: output,
+      ids: ids,
+      slots: slots,
+      calls: definitions,
+      origins: graph.index-by-id(declarations, item => item.origin),
       layers: schedule.value,
     ),
     issues: (),
   )
-}
-
-/// Returns (flow, issues); failure returns no flow.
-/// Input order defines composite arguments. All calls are checked.
-#let assemble(calls, inputs: (), output: none) = {
-  assert(type(calls) == array, message: "policy calls must be an array")
-  assert(type(inputs) == array, message: "policy inputs must be an array")
-  assert(
-    type(output) == str and output != "",
-    message: "policy output must be a non-empty string",
-  )
-
-  let assembled = graph.assemble(declarations(calls, inputs))
-  if assembled.state == none {
-    return (flow: none, issues: assembled.issues)
-  }
-  validate(assembled, inputs, output)
 }

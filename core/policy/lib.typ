@@ -1,4 +1,6 @@
-/// Policy declarations, dependency assembly, and evaluation.
-#import "function.typ": function
+/// Policy declarations, clone composition, result lifting, and staged programs.
+#import "clone.typ": bind, operation, projection, tuple
+#import "function.typ": definition, invocation
 #import "assemble.typ": assemble
-#import "evaluate.typ": evaluate
+#import "result.typ": lift
+#import "evaluate.typ": compile, evaluate

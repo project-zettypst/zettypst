@@ -27,28 +27,38 @@ fn verified_early_observation_reaches_external_consumers() {
     assert_eq!(report["domain-size"], 4);
     assert_eq!(
         report["verification"],
-        json!({"has-plan": true, "issues": []})
+        json!({"has-evidence": true, "issues": []})
     );
     let success = &report["success"];
     for name in ["early", "gated", "final"] {
-        assert_eq!(success[name]["status"], "available");
         assert_eq!(success[name]["value"], true);
-        assert_eq!(success[name]["target"], "final");
+        assert_eq!(success[name]["origin"], Value::Null);
     }
-    assert_eq!(success["early"]["product"], "initial");
-    assert_eq!(success["gated"]["product"], "gated");
-    assert_eq!(success["final"]["product"], "final");
-    assert_eq!(success["early"]["evidence"]["kind"], "local-preservation");
+    assert_eq!(success["early"]["at"], "initial");
+    assert_eq!(success["gated"]["at"], "gated");
+    assert_eq!(success["final"]["at"], "final");
+    let proofs = report["proofs"].as_array().unwrap();
+    assert_eq!(proofs.len(), 3);
+    for (proof, (name, at, steps)) in proofs.iter().zip([
+        ("early", "initial", 3),
+        ("gated", "gated", 1),
+        ("final", "final", 0),
+    ]) {
+        assert_eq!(proof["observation"], name);
+        assert_eq!(proof["at"], at);
+        assert_eq!(proof["target"], "final");
+        assert_eq!(proof["steps"].as_array().unwrap().len(), steps);
+    }
     assert_eq!(
-        success["early"]["evidence"]["edges"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
+        proofs[0]["steps"],
+        json!([
+            {"source": "initial", "invocation": "derived", "port": 0, "admissible": 4},
+            {"source": "derived", "invocation": "gated", "port": 0, "admissible": 2},
+            {"source": "gated", "invocation": "final", "port": 0, "admissible": 4},
+        ])
     );
-    assert_eq!(success["final"]["evidence"]["kind"], "final");
-    let output = &success["execution"]["output"];
-    assert_eq!(output["status"], "success");
+    let output = &success["execution"]["results"]["final"];
+    assert_eq!(output["side"], "left");
     assert_eq!(
         success["early"]["value"],
         output["value"]["values"]["nodes"]["note"]["enabled"]
@@ -65,34 +75,31 @@ fn verified_early_observation_reaches_external_consumers() {
 fn downstream_failure_preserves_only_available_binding_locations() {
     let report = report();
     let failure = &report["failure"];
-    assert_eq!(failure["early"]["status"], "available");
     assert_eq!(failure["early"]["value"], false);
-    assert_eq!(failure["early"]["product"], "initial");
-    assert_eq!(
-        failure["early"]["evidence"],
-        report["success"]["early"]["evidence"]
-    );
+    assert_eq!(failure["early"]["at"], "initial");
     assert_eq!(
         failure["gated"],
         json!({
-            "status": "unavailable", "reason": "failure", "product": "gated", "target": "final",
+            "at": "gated", "origin": null,
+            "value": {"unavailable": {"kind": "failure", "invocation": "gated", "issues": [{"kind": "disabled"}]}},
         })
     );
     assert_eq!(
         failure["final"],
         json!({
-            "status": "unavailable", "reason": "blocked", "product": "final", "target": "final",
+            "at": "final", "origin": null,
+            "value": {"unavailable": {"kind": "blocked", "invocation": "final", "dependencies": ["gated"]}},
         })
     );
     let results = &failure["execution"]["results"];
-    assert_eq!(results["derived"]["status"], "success");
+    assert_eq!(results["derived"]["side"], "left");
     assert_eq!(
         results["gated"],
-        json!({"status": "failure", "issues": [{"kind": "disabled"}]})
+        json!({"side": "right", "value": {"kind": "failure", "invocation": "gated", "issues": [{"kind": "disabled"}]}})
     );
     assert_eq!(
         results["final"],
-        json!({"status": "blocked", "dependencies": ["gated"]})
+        json!({"side": "right", "value": {"kind": "blocked", "invocation": "final", "dependencies": ["gated"]}})
     );
 }
 
@@ -108,7 +115,7 @@ fn local_changes_are_rejected_even_when_later_calls_restore_the_value() {
             BTreeSet::from(["middle", "final"]),
         ),
     ] {
-        assert_eq!(report[case]["has-plan"], false);
+        assert_eq!(report[case]["has-evidence"], false);
         let issues = report[case]["issues"].as_array().unwrap();
         assert!(!issues.is_empty());
         let actual: BTreeSet<_> = issues
@@ -116,7 +123,8 @@ fn local_changes_are_rejected_even_when_later_calls_restore_the_value() {
             .map(|issue| {
                 assert_eq!(issue["kind"], "observation-changed");
                 assert_eq!(issue["observation"], observation);
-                assert_eq!(issue["product"], "initial");
+                assert_eq!(issue["at"], "initial");
+                assert_eq!(issue["target"], "final");
                 assert_ne!(issue["before"], issue["after"]);
                 assert_eq!(issue["inputs"].as_array().unwrap().len(), 1);
                 assert_eq!(issue["port"], 0);

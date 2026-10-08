@@ -1,113 +1,63 @@
-/// Evaluate an assembled flow over one fixed knowledge graph.
-#import "function.typ" as policy
-#import "../semantic.typ"
+/// Compile resolved wiring into staged morphisms and evaluate their outputs.
+#import "clone.typ"
+#import "result.typ"
 
-// User functions must return complete assignments on the same topology.
-#let checked(state, topology) = {
-  assert(
-    type(state) == dictionary,
-    message: "policy product must be a GraphState",
-  )
-  assert(
-    state.at("graph", default: none) == topology,
-    message: "policy product changed topology",
-  )
-  let values = state.at("values", default: none)
-  assert(
-    type(values) == dictionary,
-    message: "policy product must contain values",
-  )
-  let nodes = values.at("nodes", default: none)
-  let edges = values.at("edges", default: none)
-  assert(
-    type(nodes) == dictionary and type(edges) == dictionary,
-    message: "policy assignments must be dictionaries",
-  )
-  assert(
-    nodes.keys().sorted() == topology.nodes.sorted(),
-    message: "policy node assignments do not match topology",
-  )
-  assert(
-    edges.keys().sorted() == topology.edges.keys().sorted(),
-    message: "policy edge assignments do not match topology",
-  )
-  state
-}
-
-#let sources(state, target) = (
-  (
-    state.graph.edges.pairs().filter(pair => pair.at(1).target == target)
-  )
-    .sorted(key: pair => state.values.edges.at(pair.at(0)).port)
-    .map(pair => pair.at(1).source)
-)
-
-#let collect(pairs) = pairs.fold((:), (values, pair) => {
-  values.insert(pair.at(0), pair.at(1))
-  values
-})
-
-// Blocked calls never run their check or implementation.
-#let evaluate-call(state, id, results, validate) = {
-  let upstream = sources(state, id)
-  let unavailable = upstream.filter(source => (
-    results.at(source).status != "success"
-  ))
-  if unavailable.len() > 0 {
-    return (status: "blocked", dependencies: unavailable.dedup())
+/// Fix the common carrier and lift each invocation without running policies.
+/// Every stage retains prior results through projections and appends one
+/// output per ready invocation. Shared predecessors are read, never rerun.
+/// Wiring must be the successful result of assemble; contract comes from
+/// semantic.contract. A program has no distinguished final output.
+#let compile(wiring, contract) = {
+  let count = wiring.inputs.len()
+  let stages = ()
+  for layer in wiring.layers {
+    let retained = range(count).map(i => clone.projection(count, i))
+    let outputs = layer.map(id => {
+      let call = wiring.calls.at(id)
+      let operation = result.lift(contract, id, call.definition)
+      let arguments = clone.tuple(
+        count,
+        call.ports.map(port => clone.projection(count, port)),
+      )
+      clone.bind(operation, arguments)
+    })
+    stages.push(clone.tuple(count, retained + outputs))
+    count += layer.len()
   }
-  let result = policy.apply(
-    state.values.nodes.at(id).policy,
-    upstream.map(source => results.at(source).value),
-  )
-  if result.status == "failure" { return result }
-  (status: "success", value: validate(result.value))
+  (wiring: wiring, contract: contract, stages: stages)
 }
 
-#let evaluate-layer(flow, layer, results, validate) = {
-  let calls = layer.filter(id => flow.state.values.nodes.at(id).kind == "call")
-  (
-    results
-      + collect(calls.map(id => (
-        id,
-        evaluate-call(flow.state, id, results, validate),
-      )))
+/// Interpret a multi-output morphism on one shared ordered input context.
+#let apply(stage, arguments) = {
+  assert(
+    arguments.len() == stage.arity,
+    message: "stage input count mismatch",
   )
+  stage.outputs.map(operation => (operation.apply)(arguments))
 }
 
-/// Supply a finite contract, or just topology for unrestricted assignments.
-/// Returns (results, output). Contract violations panic; check issues recover.
-#let evaluate(flow, topology: none, contract: none, inputs: ()) = {
-  let validate = if contract == none {
-    assert(
-      type(topology) == dictionary,
-      message: "evaluation requires a graph topology",
-    )
-    state => checked(state, topology)
-  } else {
-    assert(
-      topology == none or topology == contract.topology,
-      message: "evaluation topology conflicts with semantic contract",
-    )
-    state => semantic.checked(contract, state)
-  }
+/// External GraphStates enter as successes under the program's contract.
+/// All declared vertices are evaluated and returned by identity, including
+/// disconnected branches. Error propagation belongs entirely to lifted ops.
+#let evaluate(program, inputs: ()) = {
   assert(type(inputs) == array, message: "policy inputs must be an array")
   assert(
-    inputs.len() == flow.inputs.len(),
-    message: "policy input count does not match flow",
+    inputs.len() == program.wiring.inputs.len(),
+    message: "policy input count does not match program",
   )
-
-  let initial = collect(
-    flow
-      .inputs
-      .zip(inputs)
-      .map(((id, state)) => (
-        id,
-        (status: "success", value: validate(state)),
-      )),
-  )
-  let results = flow.layers.fold(initial, (results, layer) => (
-    evaluate-layer(flow, layer, results, validate)
+  let initial = inputs.map(state => result.success(program.contract, state))
+  let values = program.stages.fold(initial, (values, stage) => apply(
+    stage,
+    values,
   ))
-  (results: results, output: results.at(flow.output))
+  let results = program
+    .wiring
+    .ids
+    .zip(values)
+    .fold((:), (table, pair) => {
+      let (id, value) = pair
+      table.insert(id, value)
+      table
+    })
+  (results: results)
 }

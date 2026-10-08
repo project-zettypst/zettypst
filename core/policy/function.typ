@@ -1,68 +1,35 @@
-/// Pure policy functions and local invocation declarations.
-///
-/// A policy consumes an ordered list of GraphStates and returns one GraphState.
-/// The declared arity is checked here; the implementation's actual signature
-/// and result are checked when evaluated.
+/// Pure policy definitions and identified invocation declarations.
+#import "clone.typ"
+#import "../graph.typ"
 
-/// Declare a named implementation. Registration is local and immutable.
-///
-/// (p.invoke)(inputs: ("left", "right"), output: "result") declares a call;
-/// it does not execute run. Input position identifies the argument port.
-#let function(name, run, inputs: 1, check: none) = {
-  assert(
-    type(name) == str and name != "",
-    message: "policy name must be a non-empty string",
-  )
-  // Compare types without referring to the shadowed built-in `function` name.
-  assert(
-    type(run) == type(() => none),
-    message: "policy implementation must be a function",
-  )
-  assert(
-    type(inputs) == int and inputs >= 0,
-    message: "policy input count must be a non-negative integer",
-  )
-
-  assert(
-    check == none or type(check) == type(() => none),
-    message: "policy check must be a function or none",
-  )
-
-  let definition = (name: name, run: run, inputs: inputs, check: check)
-  let invoke(inputs: (), output: none) = {
-    assert(type(inputs) == array, message: "policy inputs must be an array")
-    assert(
-      inputs.len() == definition.inputs,
-      message: "policy "
-        + name
-        + " expects "
-        + str(definition.inputs)
-        + " inputs",
-    )
-    assert(
-      inputs.all(id => type(id) == str and id != ""),
-      message: "input product identities must be non-empty strings",
-    )
-    assert(
-      type(output) == str and output != "",
-      message: "output product identity must be a non-empty string",
-    )
-    (policy: definition, inputs: inputs, output: output)
-  }
-
-  definition + (invoke: invoke)
+/// A policy consumes one ordered array of states and produces one state.
+/// Check consumes the same array and returns an array of issues.
+/// Neither function is executed during declaration or structural assembly.
+/// The shared semantic contract is supplied when the definition is lifted.
+#let definition(arity, run, check: arguments => ()) = {
+  clone.require-arity(arity)
+  assert(type(run) == function, message: "policy run must be a function")
+  assert(type(check) == function, message: "policy check must be a function")
+  (arity: arity, check: check, run: run)
 }
 
-/// Check ordered arguments before running; issues are local to this call.
-#let apply(policy, inputs) = {
-  assert(inputs.len() == policy.inputs, message: "policy input count mismatch")
-  let issues = if policy.check == none { () } else { (policy.check)(..inputs) }
+/// Declare one invocation; its identity also addresses its single result.
+/// Definitions may be reused, but invocation identities must be unique.
+/// Input order and repetitions specify ports, not scheduling dependencies.
+/// Assembly resolves references and checks port counts and acyclicity.
+#let invocation(id, definition, inputs: (), origin: none) = {
+  graph.require-id(id)
   assert(
-    type(issues) == array,
-    message: "policy check must return an issue array",
+    type(definition) == dictionary
+      and type(definition.at("arity", default: none)) == int
+      and definition.arity >= 0
+      and type(definition.at("check", default: none)) == function
+      and type(definition.at("run", default: none)) == function,
+    message: "invocation requires a policy definition",
   )
-  if issues.len() > 0 {
-    return (status: "failure", issues: issues)
+  assert(type(inputs) == array, message: "invocation inputs must be an array")
+  for source in inputs {
+    graph.require-id(source)
   }
-  (status: "success", value: (policy.run)(..inputs))
+  (id: id, definition: definition, inputs: inputs, origin: origin)
 }

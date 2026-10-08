@@ -1,5 +1,38 @@
-/// Strict local preservation along every binding-to-output dependency path.
+/// Explicit checking of observation reuse along every relevant dependency path.
 #import "preservation.typ"
+#import "../graph.typ"
+
+/// A claim adds no execution dependency and performs no proof work.
+#let claim(binding, target, origin: none) = {
+  graph.require-id(target)
+  graph.require-id(binding.name)
+  graph.require-id(binding.at)
+  assert(
+    type(binding.definition.observe) == function,
+    message: "preservation claim requires a business observer",
+  )
+  (binding: binding, target: target, origin: origin)
+}
+
+// Each port is a separate edge, even when several ports share a source.
+#let edges(wiring) = (
+  wiring
+    .ids
+    .filter(id => id in wiring.calls)
+    .map(id => (
+      wiring
+        .calls
+        .at(id)
+        .ports
+        .enumerate()
+        .map(((port, slot)) => (
+          source: wiring.ids.at(slot),
+          invocation: id,
+          port: port,
+        ))
+    ))
+    .flatten()
+)
 
 #let closure(order, edges, start, reverse: false) = order.fold((start,), (
   seen,
@@ -7,89 +40,96 @@
 ) => {
   let reached = edges.any(edge => {
     if reverse {
-      edge.source == id and edge.target in seen
+      edge.source == id and edge.invocation in seen
     } else {
-      edge.target == id and edge.source in seen
+      edge.invocation == id and edge.source in seen
     }
   })
   if id in seen or not reached { seen } else { seen + (id,) }
 })
 
-#let check-binding(flow, binding, contract) = {
-  if binding.at == flow.output {
-    return (evidence: (kind: "final", target: flow.output), issues: ())
-  }
-  if contract == none {
-    return (evidence: none, issues: ((kind: "missing-semantic-contract"),))
-  }
-  let order = flow.layers.fold((), (order, layer) => order + layer)
-  let edges = flow.state.graph.edges
-  let downstream = closure(order, edges.values(), binding.at)
-  if flow.output not in downstream {
+#let check-claim(program, edges, claim) = {
+  let wiring = program.wiring
+  let binding = claim.binding
+  let downstream = closure(wiring.ids, edges, binding.at)
+  if claim.target not in downstream {
     return (evidence: none, issues: ((kind: "no-preservation-path"),))
   }
-  let upstream = closure(
-    order.rev(),
-    edges.values(),
-    flow.output,
-    reverse: true,
-  )
-  let relevant = edges
-    .pairs()
-    .filter(((id, edge)) => (
-      edge.source in downstream and edge.target in upstream
-    ))
-  let checks = relevant.map(((id, edge)) => {
-    let port = flow.state.values.edges.at(id).port
-    let result = preservation.check(
-      flow.state.values.nodes.at(edge.target).policy,
-      binding.observer,
-      contract,
-      port: port,
-    )
-    (
-      edge: id,
-      issues: result.issues.map(issue => (
-        issue
-          + (
-            source: edge.source,
-            invocation: edge.target,
-          )
-      )),
-    )
-  })
-  let issues = checks.map(check => check.issues).flatten()
-  if issues.len() > 0 { return (evidence: none, issues: issues) }
-  (
-    evidence: (
-      kind: "local-preservation",
-      target: flow.output,
-      edges: checks.map(check => check.edge),
+  let upstream = closure(wiring.ids.rev(), edges, claim.target, reverse: true)
+  let relevant = edges.filter(edge => (
+    edge.source in downstream and edge.invocation in upstream
+  ))
+  let checks = relevant.map(edge => (
+    edge: edge,
+    result: preservation.check(
+      wiring.calls.at(edge.invocation).definition,
+      binding.definition.observe,
+      program.contract,
+      port: edge.port,
     ),
-    issues: (),
+  ))
+  let issues = checks
+    .map(item => item.result.issues.map(issue => (
+      issue
+        + item.edge
+        + (
+          invocation-origin: wiring.origins.at(item.edge.invocation),
+        )
+    )))
+    .flatten()
+  (
+    evidence: if issues.len() > 0 { none } else {
+      (
+        binding: binding,
+        target: claim.target,
+        origin: claim.origin,
+        steps: checks.map(item => item.edge + (evidence: item.result.evidence)),
+      )
+    },
+    issues: issues,
   )
 }
 
-/// No partial authorization: every declared binding must pass.
-#let verify(flow, bindings, contract: none) = {
-  let checked = bindings.map(binding => (
-    binding: binding,
-    result: check-binding(flow, binding, contract),
+/// Validate all addresses before any exhaustive work. Returns evidence only
+/// when every claim passes. A reflexive claim needs no local steps; unrelated
+/// vertices have no preservation path. Only success semantics are proved:
+/// neither availability nor invariance of error diagnostics is promised.
+#let verify(program, claims) = {
+  assert(type(claims) == array, message: "preservation claims must be an array")
+  let location(claim) = (
+    observation: claim.binding.name,
+    at: claim.binding.at,
+    target: claim.target,
+    origin: claim.origin,
+    binding-origin: claim.binding.origin,
+  )
+  let issues = ()
+  for claim in claims {
+    if claim.binding.at not in program.wiring.slots {
+      issues.push(location(claim) + (kind: "missing-preservation-source"))
+    }
+    if claim.target not in program.wiring.slots {
+      issues.push(location(claim) + (kind: "missing-preservation-target"))
+    }
+  }
+  if issues.len() > 0 { return (evidence: none, issues: issues) }
+  let edges = edges(program.wiring)
+  let checked = claims.map(claim => (
+    claim: claim,
+    result: check-claim(program, edges, claim),
   ))
   let issues = checked
     .map(item => item.result.issues.map(issue => (
-      issue + (observation: item.binding.name, product: item.binding.at)
+      issue + location(item.claim)
     )))
     .flatten()
-  if issues.len() > 0 { return (plan: none, issues: issues) }
   (
-    plan: (
-      target: flow.output,
-      contract: contract,
-      bindings: checked.map(item => (
-        item.binding + (evidence: item.result.evidence)
-      )),
-    ),
-    issues: (),
+    evidence: if issues.len() > 0 { none } else {
+      (
+        contract: program.contract,
+        claims: checked.map(item => item.result.evidence),
+      )
+    },
+    issues: issues,
   )
 }

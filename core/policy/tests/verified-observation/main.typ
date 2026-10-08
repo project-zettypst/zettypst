@@ -1,36 +1,46 @@
 #import "rules.typ": *
 #import "/core/lib.typ": eval, observation, policy, semantic
+#import "/core/policy/verification.typ"
 
 #let build(calls) = {
-  let result = policy.assemble(calls, inputs: ("initial",), output: "final")
+  let result = policy.assemble(calls, inputs: ("initial",))
   assert.eq(result.issues, ())
-  result.flow
+  policy.compile(result.wiring, contract)
 }
-#let verify(flow, bindings) = {
-  let prepared = observation.prepare(flow, bindings)
-  assert.eq(prepared.issues, ())
-  observation.verify(prepared.plan, contract: contract)
-}
-
-#let flow = build(calls)
-#let verified = verify(flow, (
-  observation.bind("early", observer: read-enabled, at: "initial"),
-  observation.bind("gated", observer: read-enabled, at: "gated"),
-  observation.bind(
+#let enabled = observation.definition(
+  read-enabled,
+  on-error: error => (unavailable: error),
+)
+#let bindings = (
+  observation.binding("early", enabled, at: "initial"),
+  observation.binding("gated", enabled, at: "gated"),
+  observation.binding(
     "final",
-    observer: state => {
-      assert(read-enabled(state), message: "blocked observer must not run")
-      read-enabled(state)
-    },
+    observation.definition(
+      state => {
+        assert(read-enabled(state), message: "blocked observer must not run")
+        read-enabled(state)
+      },
+      on-error: error => (unavailable: error),
+    ),
     at: "final",
   ),
-))
-#assert.eq(verified.issues, ())
-#assert(verified.plan != none)
+)
 
+#let program = build(calls)
+#let compiled = observation.compile(program, bindings)
+#assert.eq(compiled.issues, ())
+#let verified = verification.verify(
+  program,
+  bindings.map(binding => verification.claim(binding, "final")),
+)
+#assert.eq(verified.issues, ())
+#assert(verified.evidence != none)
+
+// Collection consumes the observation plan, not preservation evidence.
 #let run(input) = {
-  let execution = policy.evaluate(flow, contract: contract, inputs: (input,))
-  let table = observation.collect(verified.plan, execution)
+  let execution = policy.evaluate(program, inputs: (input,))
+  let table = observation.collect(compiled.plan, execution)
   (
     execution: execution,
     early: observation.query(table, "early"),
@@ -39,28 +49,49 @@
   )
 }
 
-#let invalid-phase = verify(flow, (
-  observation.bind("phase", observer: read-phase, at: "initial"),
+#let invalid-phase = verification.verify(program, (
+  verification.claim(
+    observation.binding(
+      "phase",
+      observation.definition(read-phase, on-error: error => error),
+      at: "initial",
+    ),
+    "final",
+  ),
 ))
 #let compensated = build((
   call(flip, "initial", "middle"),
   call(flip, "middle", "final"),
 ))
-#let invalid-compensation = verify(compensated, (
-  observation.bind("enabled", observer: read-enabled, at: "initial"),
+#let invalid-compensation = verification.verify(compensated, (
+  verification.claim(
+    observation.binding("enabled", enabled, at: "initial"),
+    "final",
+  ),
 ))
-#let summary(result) = (has-plan: result.plan != none, issues: result.issues)
+#let summary(result) = (
+  has-evidence: result.evidence != none,
+  issues: result.issues,
+)
 
 #eval.announce(<policy.verified-observation>, (
   domain-size: semantic.states(contract).len(),
   verification: summary(verified),
+  proofs: verified.evidence.claims.map(claim => (
+    observation: claim.binding.name,
+    at: claim.binding.at,
+    target: claim.target,
+    steps: claim.steps.map(step => (
+      source: step.source,
+      invocation: step.invocation,
+      port: step.port,
+      admissible: step.evidence.admissible,
+    )),
+  )),
   success: run(initial),
   failure: run(update(initial, enabled: false)),
   invalid-phase: summary(invalid-phase),
   invalid-compensation: summary(invalid-compensation),
-  restored: policy
-    .evaluate(compensated, contract: contract, inputs: (initial,))
-    .output
-    .value
+  restored: policy.evaluate(compensated, inputs: (initial,)).results.final.value
     == initial,
 ))

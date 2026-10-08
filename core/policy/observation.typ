@@ -1,109 +1,96 @@
-/// Named observation bindings and snapshot-local results.
-#import "verification.typ"
-#import "../semantic.typ"
+/// Local observations: reusable definitions, address bindings, and collection.
+#import "result.typ"
+#import "../graph.typ"
 
-#let bind(name, observer: none, at: none) = {
+/// Branches share the caller's chosen observation space.
+/// Construction executes neither branch; error interpretation is explicit.
+#let definition(observe, on-error: none) = {
+  assert(type(observe) == function, message: "observer must be a function")
   assert(
-    type(name) == str and name != "",
-    message: "observation name must be a non-empty string",
+    type(on-error) == function,
+    message: "error observer must be a function",
   )
-  assert(type(observer) == function, message: "observer must be a function")
-  assert(
-    type(at) == str and at != "",
-    message: "observation product must be a non-empty string",
-  )
-  (name: name, observer: observer, at: at)
+  (observe: observe, on-error: on-error)
 }
 
-#let binding-issues(flow, bindings) = (
-  bindings
-    .enumerate()
-    .map(((index, binding)) => {
-      let duplicate = bindings
-        .slice(0, index)
-        .any(previous => previous.name == binding.name)
-      let missing = binding.at not in flow.state.graph.nodes
-      (
-        (
-          if duplicate {
-            ((kind: "duplicate-observation", name: binding.name),)
-          } else { () }
-        )
-          + (
-            if missing {
-              (
-                (
-                  kind: "missing-product",
-                  name: binding.name,
-                  product: binding.at,
-                ),
-              )
-            } else { () }
-          )
-      )
-    })
-    .flatten()
-)
+/// Names identify observations, not computation vertices.
+/// Several observations may consume the same vertex without adding DAG nodes.
+#let binding(name, definition, at: none, origin: none) = {
+  graph.require-id(name)
+  graph.require-id(at)
+  assert(
+    type(definition) == dictionary
+      and type(definition.at("observe", default: none)) == function
+      and type(definition.at("on-error", default: none)) == function,
+    message: "binding requires an observation definition",
+  )
+  (name: name, definition: definition, at: at, origin: origin)
+}
 
-/// Resolve bind declarations. Structural validity does not prove stability.
-#let prepare(flow, bindings) = {
+/// Resolve all addresses before lifting. No observation is executed.
+/// Structural issues produce no partial plan; preservation is not required.
+#let compile(program, bindings) = {
   assert(
     type(bindings) == array,
     message: "observation bindings must be an array",
   )
-  let issues = binding-issues(flow, bindings)
-  if issues.len() > 0 { return (plan: none, issues: issues) }
-  (plan: (flow: flow, bindings: bindings), issues: ())
-}
-
-/// Complete verification before collecting any observation values.
-#let verify(prepared, contract: none) = verification.verify(
-  prepared.flow,
-  prepared.bindings,
-  contract: contract,
-)
-
-// Never substitute another product for an unavailable binding.
-#let observe(binding, target, results) = {
-  let result = results.at(binding.at)
-  let location = (product: binding.at, target: target)
-  if result.status != "success" {
-    return location + (status: "unavailable", reason: result.status)
-  }
-  (
-    location
-      + (
-        status: "available",
-        value: (binding.observer)(result.value),
-        evidence: binding.evidence,
-      )
-  )
-}
-
-/// Consume a verified plan with an evaluation of its flow; never fall back.
-#let collect(plan, evaluation) = {
-  assert(
-    "contract" in plan,
-    message: "observations must be verified before collection",
-  )
-  if plan.contract != none {
-    for result in evaluation.results.values() {
-      if result.status == "success" {
-        let _ = semantic.checked(plan.contract, result.value)
-      }
+  let issues = ()
+  for (index, binding) in bindings.enumerate() {
+    if bindings.slice(0, index).any(previous => previous.name == binding.name) {
+      issues.push((
+        kind: "duplicate-observation",
+        name: binding.name,
+        origin: binding.origin,
+      ))
+    }
+    if binding.at not in program.wiring.slots {
+      issues.push((
+        kind: "missing-observation-target",
+        name: binding.name,
+        at: binding.at,
+        origin: binding.origin,
+      ))
     }
   }
+  if issues.len() > 0 { return (plan: none, issues: issues) }
+  (
+    plan: (
+      bindings: bindings.map(binding => (
+        name: binding.name,
+        at: binding.at,
+        origin: binding.origin,
+        observe: result.lift-observer(
+          program.contract,
+          binding.definition.observe,
+          binding.definition.on-error,
+        ),
+      )),
+    ),
+    issues: (),
+  )
+}
+
+/// Consume saved results from the same program, never rerunning its policies.
+/// Missing addresses are errors, not substitutes for invocation failures.
+/// Each lifted observer owns its success/error interpretation and validation.
+#let collect(plan, evaluation) = {
+  for binding in plan.bindings {
+    assert(
+      binding.at in evaluation.results,
+      message: "missing observation result: " + binding.at,
+    )
+  }
   plan.bindings.fold((:), (table, binding) => {
-    table.insert(binding.name, observe(
-      binding,
-      plan.target,
-      evaluation.results,
+    table.insert(binding.name, (
+      at: binding.at,
+      origin: binding.origin,
+      value: (binding.observe)(evaluation.results.at(binding.at)),
     ))
     table
   })
 }
 
-/// Read saved results without rerunning observers or publishing announcements.
+/// Read a collected value without executing observers again.
 #let query(table, name) = {
   assert(name in table, message: "unknown observation: " + name)
   table.at(name)

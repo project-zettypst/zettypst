@@ -23,26 +23,27 @@
   note: state.values.nodes.note + fields.named(),
 ))
 
-#let advance = policy.function("advance", state => update(
-  state,
+#let advance = policy.definition(1, xs => update(
+  xs.first(),
   phase: phase.after,
 ))
-#let gate = policy.function(
-  "gate",
-  state => state,
-  check: state => if read-enabled(state) { () } else {
+#let gate = policy.definition(
+  1,
+  xs => xs.first(),
+  check: xs => if read-enabled(xs.first()) { () } else {
     ((kind: "disabled"),)
   },
 )
-#let identity = policy.function("identity", state => state)
-#let flip = policy.function("flip", state => update(
-  state,
-  enabled: not read-enabled(state),
+#let identity = policy.definition(1, xs => xs.first())
+#let flip = policy.definition(1, xs => update(
+  xs.first(),
+  enabled: not read-enabled(xs.first()),
 ))
 
-#let call(definition, input, output) = (definition.invoke)(
+#let call(definition, input, output) = policy.invocation(
+  output,
+  definition,
   inputs: (input,),
-  output: output,
 )
 #let calls = (
   call(identity, "gated", "final"),

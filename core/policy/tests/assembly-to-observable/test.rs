@@ -22,11 +22,10 @@ fn assembled_policy_dependencies_reach_external_consumers() {
     let result = &announcements[0];
 
     assert_eq!(result["inputs"], json!(["initial"]));
-    assert_eq!(result["output"], "semantic");
+    assert_eq!(result["slots"], json!({"initial": 0, "contextual": 1, "related": 2, "semantic": 3}));
     let layers = result["layers"].as_array().unwrap();
-    assert_eq!(layers.len(), 3);
-    assert_eq!(layers[0], json!(["initial"]));
-    let branches = layers[1].as_array().unwrap();
+    assert_eq!(layers.len(), 2);
+    let branches = layers[0].as_array().unwrap();
     assert_eq!(branches.len(), 2);
     assert_eq!(
         branches
@@ -35,7 +34,7 @@ fn assembled_policy_dependencies_reach_external_consumers() {
             .collect::<BTreeSet<_>>(),
         BTreeSet::from(["related", "contextual"]),
     );
-    assert_eq!(layers[2], json!(["semantic"]));
+    assert_eq!(layers[1], json!(["semantic"]));
 
     let nodes = result["nodes"].as_array().unwrap();
     assert_eq!(nodes.len(), 4);
