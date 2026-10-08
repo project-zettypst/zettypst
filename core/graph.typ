@@ -13,31 +13,35 @@
 /// namespaces. Parallel edges remain distinct by ID; cycles are allowed.
 /// Values are opaque to this module. Source origins are kept outside the state.
 
+#import "graph-schema.typ" as schema
+
 #let require-id(id) = {
-  assert(type(id) == str, message: "graph identity must be a string")
-  assert(id != "", message: "graph identity must not be empty")
+  let _ = schema.checked(id, schema.id)
 }
 
 /// Declare a node and its initial value. Origin is optional, opaque provenance.
-#let node(id, value: none, origin: none) = {
-  require-id(id)
-  (id: id, value: value, origin: origin)
-}
+#let node(id, value: none, origin: none) = schema.checked(
+  (id: id, value: value, origin: origin),
+  schema.node-declaration,
+)
 
 /// Declare an edge occurrence. Endpoints need not exist in the local fragment.
-#let edge(id, source: none, target: none, value: none, origin: none) = {
-  require-id(id)
-  require-id(source)
-  require-id(target)
-  (id: id, source: source, target: target, value: value, origin: origin)
-}
+#let edge(
+  id,
+  source: none,
+  target: none,
+  value: none,
+  origin: none,
+) = schema.checked(
+  (id: id, source: source, target: target, value: value, origin: origin),
+  schema.edge-declaration,
+)
 
 /// Group declarations without resolving references or choosing edge ownership.
-#let fragment(nodes: (), edges: ()) = {
-  assert(type(nodes) == array, message: "fragment nodes must be an array")
-  assert(type(edges) == array, message: "fragment edges must be an array")
-  (nodes: nodes, edges: edges)
-}
+#let fragment(nodes: (), edges: ()) = schema.checked(
+  (nodes: nodes, edges: edges),
+  schema.fragment,
+)
 
 // Report each duplicate against the first declaration of that identity.
 #let duplicate-issues(items, kind) = {
@@ -91,25 +95,9 @@
 ///
 /// Array order follows declaration order, but does not imply execution order.
 #let assemble(fragments) = {
-  let nodes = fragments
-    .map(part => part.nodes)
-    .flatten()
-    .map(item => node(
-      item.id,
-      value: item.value,
-      origin: item.origin,
-    ))
-
-  let edges = fragments
-    .map(part => part.edges)
-    .flatten()
-    .map(item => edge(
-      item.id,
-      source: item.source,
-      target: item.target,
-      value: item.value,
-      origin: item.origin,
-    ))
+  let fragments = schema.checked(fragments, schema.fragments)
+  let nodes = fragments.map(part => part.nodes).flatten()
+  let edges = fragments.map(part => part.edges).flatten()
   let node-ids = nodes.map(item => item.id)
 
   let issues = (
@@ -146,31 +134,31 @@
 /// Replace selected values, preserving topology and all unmentioned values.
 /// Accepts a state produced by assemble or assign. Unknown identities are errors.
 #let assign(state, nodes: (:), edges: (:)) = {
-  assert(
-    type(nodes) == dictionary,
-    message: "node assignments must be a dictionary",
+  let state = schema.checked(state, schema.state, scope: ("state",))
+  let updates = schema.checked(
+    (nodes: nodes, edges: edges),
+    schema.assignments,
+    scope: ("assignments",),
   )
-  assert(
-    type(edges) == dictionary,
-    message: "edge assignments must be a dictionary",
-  )
-  for id in nodes.keys() {
+  for id in updates.nodes.keys() {
     assert(id in state.values.nodes, message: "unknown node: " + id)
   }
-  for id in edges.keys() {
+  for id in updates.edges.keys() {
     assert(id in state.values.edges, message: "unknown edge: " + id)
   }
   (
     graph: state.graph,
     values: (
-      nodes: state.values.nodes + nodes,
-      edges: state.values.edges + edges,
+      nodes: state.values.nodes + updates.nodes,
+      edges: state.values.edges + updates.edges,
     ),
   )
 }
 
 /// Return edge identities without collapsing parallel occurrences.
 #let incoming(graph, id) = {
+  let graph = schema.checked(graph, schema.graph, scope: ("graph",))
+  require-id(id)
   assert(id in graph.nodes, message: "unknown node: " + id)
   graph
     .edges
@@ -180,6 +168,8 @@
 }
 
 #let outgoing(graph, id) = {
+  let graph = schema.checked(graph, schema.graph, scope: ("graph",))
+  require-id(id)
   assert(id in graph.nodes, message: "unknown node: " + id)
   graph
     .edges
