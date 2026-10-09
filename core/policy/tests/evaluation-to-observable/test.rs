@@ -38,7 +38,10 @@ fn successful_evaluation_matches_direct_composition() {
     ] {
         let result = &results[id];
         assert_eq!(result["side"], "left", "product {id}");
-        assert_eq!(result["value"]["values"]["nodes"]["note"]["value"], expected);
+        assert_eq!(
+            result["value"]["values"]["nodes"]["note"]["value"],
+            expected
+        );
         assert_eq!(result["value"]["values"]["nodes"]["note"]["type"], "number");
         assert_eq!(result["value"]["graph"], report["initial"]["graph"]);
         assert_eq!(result["value"]["values"]["edges"], json!({}));

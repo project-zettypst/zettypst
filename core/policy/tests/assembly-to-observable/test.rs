@@ -22,7 +22,10 @@ fn assembled_policy_dependencies_reach_external_consumers() {
     let result = &announcements[0];
 
     assert_eq!(result["inputs"], json!(["initial"]));
-    assert_eq!(result["slots"], json!({"initial": 0, "contextual": 1, "related": 2, "semantic": 3}));
+    assert_eq!(
+        result["slots"],
+        json!({"initial": 0, "contextual": 1, "related": 2, "semantic": 3})
+    );
     let layers = result["layers"].as_array().unwrap();
     assert_eq!(layers.len(), 2);
     let branches = layers[0].as_array().unwrap();
