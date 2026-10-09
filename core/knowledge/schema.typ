@@ -24,7 +24,7 @@
     )
 )
 
-#let no-positional = z.array(max: 0, default: none)
+#let no-positional = graph.array(graph.opaque, max: 0)
 
 #let reference = graph.record("ReferenceDeclaration", (
   id: graph.id,

@@ -35,12 +35,12 @@
 #let failure = graph.record("Failure", (
   kind: tag(("failure",)),
   invocation: graph.id,
-  issues: z.array(graph.opaque, min: 1, default: none),
+  issues: graph.array(graph.opaque, min: 1),
 ))
 #let blocked = graph.record("Blocked", (
   kind: tag(("blocked",)),
   invocation: graph.id,
-  dependencies: z.array(graph.id, min: 1, default: none),
+  dependencies: graph.array(graph.id, min: 1),
 ))
 #let error-kind = tag(("failure", "blocked"))
 #let error = (

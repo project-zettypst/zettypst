@@ -7,7 +7,11 @@ license.workspace = true
 repository.workspace = true
 description = "Persistent Typst evaluation and source provenance for ZetTypst"
 
-# Core owns this end-to-end test; eval supplies its runtime and test harness.
+# Core owns these tests; eval supplies its runtime and test harness.
+[[test]]
+name = "core-schema"
+path = "../core/tests/schema/test.rs"
+
 [[test]]
 name = "core-knowledge-local-to-observable"
 path = "../core/knowledge/tests/local-to-observable/test.rs"

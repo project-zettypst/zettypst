@@ -41,7 +41,24 @@
 
 #let id = z.string(min: 1)
 #let opaque = z.any()
-#let array(item) = z.array(item, default: none)
+/// Validate every element without rebuilding the array. Only length assertions
+/// run on the array itself, so discarding parsed elements preserves their checks.
+#let array(item, min: none, max: none) = (
+  z.array(item, min: min, max: max, default: none)
+    + (
+      handle-descendents: (self, value, ctx: z.z-ctx(), scope: ()) => {
+        for (index, entry) in value.enumerate() {
+          let _ = (self.descendents-schema.validate)(
+            self.descendents-schema,
+            entry,
+            ctx: ctx,
+            scope: scope + (str(index),),
+          )
+        }
+        value
+      },
+    )
+)
 
 /// Dynamic dictionary keys are graph identities; values follow the given type.
 #let indexed(item) = (
