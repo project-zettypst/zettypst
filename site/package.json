@@ -12,6 +12,9 @@
     "theme"
   ],
   "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
     "test": "node --test \"test/**/*.test.mjs\""
   },
   "peerDependencies": {
