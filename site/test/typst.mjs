@@ -1,7 +1,7 @@
 // Compile Typst math with the site's HTML rules, exactly as cards are
 // compiled, and return each <math> element Typst emits.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,9 +32,16 @@ export function typstHTML(source) {
 
 /** Compile a fixture project's bundle; returns each HTML page, parsed, by path. */
 export function typstBundle(fixture, entry = 'site.typ') {
-  const root = fileURLToPath(new URL(`fixtures/${fixture}/`, import.meta.url));
-  const out = mkdtempSync(join(tmpdir(), 'zettypst-bundle-'));
+  const fixtureRoot = fileURLToPath(new URL(`fixtures/${fixture}/`, import.meta.url));
+  const work = mkdtempSync(join(tmpdir(), 'zettypst-bundle-'));
+  const root = join(work, 'project');
+  const out = join(work, 'out');
   try {
+    cpSync(fixtureRoot, root, { recursive: true, dereference: true, filter: () => true });
+    const modules = fileURLToPath(new URL('../../kickstart/template/.zettypst/', import.meta.url));
+    for (const file of readdirSync(modules)) {
+      if (file.endsWith('.typ')) cpSync(join(modules, file), join(root, '.zettypst', file));
+    }
     execFileSync(process.env.TYPST || 'typst', [
       'compile', '--features', 'bundle,html', '--format', 'bundle', '--root', root, join(root, entry), out,
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -44,7 +51,7 @@ export function typstBundle(fixture, entry = 'site.typ') {
     }
     return pages;
   } finally {
-    rmSync(out, { recursive: true, force: true });
+    rmSync(work, { recursive: true, force: true });
   }
 }
 
