@@ -1,14 +1,13 @@
 /// Structural policy types; composition and contract checks remain separate.
-#import "@preview/valkyrie:0.2.2" as z
 #import "../graph-schema.typ" as graph
 #import "../graph-schema.typ": checked
 
-#let arity = z.integer(min: 0)
+#let arity = graph.integer(min: 0)
 #let index = arity
-#let callable = z.function()
+#let callable = graph.typed("function", (function,))
 #let arguments = graph.array(graph.opaque)
 #let identities = graph.array(graph.id)
-#let tag(values) = z.string(assertions: (z.assert.one-of(values),))
+#let tag = graph.one-of
 
 #let operation = graph.record("Operation", (arity: arity, apply: callable))
 #let operations = graph.array(operation)
@@ -42,27 +41,10 @@
   invocation: graph.id,
   dependencies: graph.array(graph.id, min: 1),
 ))
-#let error-kind = tag(("failure", "blocked"))
-#let error = (
-  z.base-type(name: "InvocationError", types: (dictionary,))
-    + (
-      handle-descendents: (self, value, ctx: z.z-ctx(), scope: ()) => {
-        let kind = z.parse(
-          value.at("kind", default: none),
-          error-kind,
-          ctx: ctx,
-          scope: scope + ("kind",),
-        )
-        let _ = z.parse(
-          value,
-          if kind == "failure" { failure } else { blocked },
-          ctx: ctx,
-          scope: scope,
-        )
-        value
-      },
-    )
-)
+#let error = graph.tagged("InvocationError", "kind", (
+  failure: failure,
+  blocked: blocked,
+))
 
 #let observer = graph.record("ObservationDefinition", (
   observe: callable,

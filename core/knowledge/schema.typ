@@ -1,28 +1,12 @@
 /// Knowledge declarations reuse the graph's structural types.
-#import "@preview/valkyrie:0.2.2" as z
 #import "../graph-schema.typ" as graph
 #import "../graph-schema.typ": checked
 
 #let raw-to-local = graph.record("RawToLocalDefinition", (
-  stage: z.string(assertions: (z.assert.one-of(("raw-to-local",)),)),
-  observe: z.function(),
+  stage: graph.one-of(("raw-to-local",)),
+  observe: graph.typed("function", (function,)),
 ))
-#let registry = (
-  z.base-type(name: "ObserverRegistry", types: (dictionary,))
-    + (
-      handle-descendents: (self, value, ctx: z.z-ctx(), scope: ()) => {
-        for (name, definition) in value {
-          let _ = z.parse(
-            definition,
-            raw-to-local,
-            ctx: ctx,
-            scope: scope + (name,),
-          )
-        }
-        value
-      },
-    )
-)
+#let registry = graph.dictionary-of("ObserverRegistry", raw-to-local)
 
 #let no-positional = graph.array(graph.opaque, max: 0)
 
@@ -37,6 +21,6 @@
 #let local = graph.record("Local", (
   node: graph.node-declaration,
   references: graph.array(graph.edge-declaration),
-  data: z.base-type(name: "open dictionary", types: (dictionary,)),
+  data: graph.typed("open dictionary", (dictionary,)),
 ))
 #let locals = graph.array(local)

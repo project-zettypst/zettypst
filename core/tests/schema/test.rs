@@ -376,3 +376,198 @@ fn boundary_schema_errors_are_stable() {
         }
     }
 }
+
+/// Extra shapes probing Valkyrie's none/auto defaulting and nested containers.
+const AGREEMENT_CASES: &[(&str, &str)] = &[
+    ("auto", "schema.opaque"),
+    ("none", "schema.opaque"),
+    ("auto", "schema.id"),
+    (r#""a""#, "schema.id"),
+    (r#""""#, "schema.id"),
+    ("1", "schema.id"),
+    (
+        r#"(id: auto, value: none, origin: none)"#,
+        "schema.node-declaration",
+    ),
+    (
+        r#"(id: "a", value: auto, origin: auto)"#,
+        "schema.node-declaration",
+    ),
+    (
+        r#"(id: "a", value: none, origin: none, extra: 1)"#,
+        "schema.node-declaration",
+    ),
+    ("(:)", "schema.node-declaration"),
+    ("()", "schema.node-declaration"),
+    ("(nodes: (), edges: ())", "schema.fragment"),
+    (
+        r#"((nodes: ((id: "a", value: 1, origin: none),), edges: ()),)"#,
+        "schema.fragments",
+    ),
+    (
+        r#"((nodes: ((id: "a", value: 1),), edges: ()),)"#,
+        "schema.fragments",
+    ),
+    (
+        r#"(nodes: ("a",), edges: (e: (source: "a", target: "a")))"#,
+        "schema.graph",
+    ),
+    (
+        r#"(nodes: ("a",), edges: (e: (source: "a")))"#,
+        "schema.graph",
+    ),
+    ("(nodes: (:), edges: (:))", "schema.assignments"),
+    ("(nodes: (), edges: (:))", "schema.assignments"),
+    ("(1, 2)", "knowledge.no-positional"),
+    ("(:)", "knowledge.registry"),
+    (
+        r#"(note: (stage: "raw-to-local", observe: x => x, extra: 1))"#,
+        "knowledge.registry",
+    ),
+    (
+        r#"(id: "r", target: "t", value: none, origin: none)"#,
+        "knowledge.reference",
+    ),
+    (
+        r#"((id: "r", target: auto, value: none, origin: none),)"#,
+        "knowledge.references",
+    ),
+    (
+        r#"((node: (id: "a", value: none, origin: none), references: ((id: "e", source: "a", target: "b", value: none, origin: none),), data: (title: 1)),)"#,
+        "knowledge.locals",
+    ),
+    (
+        r#"((node: (id: "a", value: none, origin: none), references: ((id: "e", source: "a", target: "", value: none, origin: none),), data: (:)),)"#,
+        "knowledge.locals",
+    ),
+    ("true", "policy.arity"),
+    ("3", "policy.index"),
+    ("((arity: 0, apply: x => x),)", "policy.operations"),
+    (
+        "(arity: 1, outputs: ((arity: 1, apply: 2),))",
+        "policy.morphism",
+    ),
+    (r#"("a", "")"#, "policy.identities"),
+    (
+        r#"((side: "left", value: 1), (side: "right", value: 2))"#,
+        "policy.sums",
+    ),
+    (
+        r#"((side: "left", value: 1), (side: auto, value: 2))"#,
+        "policy.sums",
+    ),
+    (
+        r#"(kind: "failure", invocation: "a", issues: (1,))"#,
+        "policy.error",
+    ),
+    (
+        r#"(kind: "failure", invocation: "a", dependencies: ("b",))"#,
+        "policy.error",
+    ),
+    (
+        r#"(kind: auto, invocation: "a", issues: (1,))"#,
+        "policy.error",
+    ),
+    (
+        r#"((id: "i", definition: (arity: 0, check: x => x, run: x => x), inputs: (), origin: none),)"#,
+        "policy.invocations",
+    ),
+    (
+        r#"((name: "n", definition: (observe: x => x, on-error: x => x), at: "a", origin: 1),)"#,
+        "policy.bindings",
+    ),
+    (
+        r#"((binding: (name: "n", definition: (observe: x => x, on-error: none), at: "a", origin: none), target: "t", origin: none),)"#,
+        "policy.claims",
+    ),
+];
+
+/// Every schema core passes to checked; each must carry a fast-path descriptor.
+const CORE_SCHEMAS: &[&str] = &[
+    "schema.id",
+    "schema.opaque",
+    "schema.node-declaration",
+    "schema.edge-declaration",
+    "schema.fragment",
+    "schema.fragments",
+    "schema.endpoints",
+    "schema.graph",
+    "schema.assignments",
+    "schema.state",
+    "knowledge.raw-to-local",
+    "knowledge.registry",
+    "knowledge.no-positional",
+    "knowledge.reference",
+    "knowledge.references",
+    "knowledge.local",
+    "knowledge.locals",
+    "policy.arity",
+    "policy.index",
+    "policy.callable",
+    "policy.arguments",
+    "policy.identities",
+    "policy.operation",
+    "policy.operations",
+    "policy.morphism",
+    "policy.definition",
+    "policy.invocation",
+    "policy.invocations",
+    "policy.sum",
+    "policy.sums",
+    "policy.issues",
+    "policy.failure",
+    "policy.blocked",
+    "policy.error",
+    "policy.observer",
+    "policy.binding",
+    "policy.bindings",
+    "policy.claim",
+    "policy.claims",
+];
+
+fn fast_accepts(runtime: &mut Runtime, value: &str, ty: &str) -> bool {
+    let result = evaluate(
+        runtime,
+        &format!(
+            r#"#let accepted = schema.valid({value}, schema.describe({ty}))
+#metadata((tag: <schema.test>, value: accepted))<eval.announcement>"#
+        ),
+    )
+    .unwrap_or_else(|error| panic!("{ty} {value}: {error}"));
+    let text = result.to_string();
+    assert!(text.contains("true") != text.contains("false"), "{text}");
+    text.contains("true")
+}
+
+#[test]
+fn every_core_schema_has_a_descriptor() {
+    let mut runtime = runtime();
+    for ty in CORE_SCHEMAS {
+        evaluate(
+            &mut runtime,
+            &format!("#assert(schema.describe({ty}) != none)"),
+        )
+        .unwrap_or_else(|error| panic!("{ty}: {error}"));
+    }
+}
+
+#[test]
+fn fast_path_agrees_with_valkyrie() {
+    let mut runtime = runtime();
+    let cases = BOUNDARY_CASES
+        .iter()
+        .map(|(value, ty, _)| (*value, *ty))
+        .chain(AGREEMENT_CASES.iter().copied());
+    for (value, ty) in cases {
+        let valkyrie = evaluate(
+            &mut runtime,
+            &format!(r#"#let _ = z.parse({value}, {ty}, scope: ("test",))"#),
+        )
+        .is_ok();
+        assert_eq!(
+            fast_accepts(&mut runtime, value, ty),
+            valkyrie,
+            "{ty} {value}"
+        );
+    }
+}
