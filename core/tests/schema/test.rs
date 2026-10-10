@@ -211,3 +211,168 @@ fn bounded_policy_and_registry_arrays_keep_their_contracts() {
     )
     .unwrap();
 }
+
+/// Boundary cases shared by the error snapshot and fast-path agreement tests.
+/// Each entry is (value, schema, expected error suffix or None when valid).
+const BOUNDARY_CASES: &[(&str, &str, Option<&str>)] = &[
+    ("0", "policy.arity", None),
+    ("-1", "policy.arity", Some("test: Value must be at least 0")),
+    ("1.5", "policy.arity", Some("test: Expected int. Got float")),
+    ("none", "policy.arity", Some("test: Expected int. Got none")),
+    ("x => x", "policy.callable", None),
+    (
+        "1",
+        "policy.callable",
+        Some("test: Expected function. Got integer"),
+    ),
+    (
+        "none",
+        "policy.callable",
+        Some("test: Expected function. Got none"),
+    ),
+    (r#"(side: "right", value: none)"#, "policy.sum", None),
+    (
+        r#"(side: "up", value: 1)"#,
+        "policy.sum",
+        Some(r#"test.side: Unknown string `"up"`"#),
+    ),
+    (
+        "(side: 1, value: 1)",
+        "policy.sum",
+        Some("test.side: Expected str. Got integer"),
+    ),
+    (
+        r#"(side: "left")"#,
+        "policy.sum",
+        Some("test.value: Missing required field"),
+    ),
+    (
+        r#"(kind: "blocked", invocation: "a", dependencies: ("b",))"#,
+        "policy.error",
+        None,
+    ),
+    (
+        r#"(invocation: "a")"#,
+        "policy.error",
+        Some("test.kind: Expected str. Got none"),
+    ),
+    (
+        r#"(kind: "x", invocation: "a")"#,
+        "policy.error",
+        Some(r#"test.kind: Unknown string `"x"`"#),
+    ),
+    (
+        r#"(kind: "failure", invocation: "a", issues: ())"#,
+        "policy.error",
+        Some("test.issues: Length must be at least 1"),
+    ),
+    (
+        r#"(kind: "failure", invocation: "a", issues: (1,), extra: 2)"#,
+        "policy.error",
+        Some("test.extra: Unknown field"),
+    ),
+    (
+        "1",
+        "policy.error",
+        Some("test: Expected dictionary. Got integer"),
+    ),
+    (
+        r#"(id: "i", definition: (arity: 1, check: x => x, run: x => x), inputs: ("a",), origin: none)"#,
+        "policy.invocation",
+        None,
+    ),
+    (
+        r#"(id: "i", definition: (arity: 1, check: x => x, run: 2), inputs: ("a",), origin: none)"#,
+        "policy.invocation",
+        Some("test.definition.run: Expected function. Got integer"),
+    ),
+    (
+        r#"(binding: (name: "n", definition: (observe: x => x, on-error: x => x), at: "a", origin: none), target: "", origin: none)"#,
+        "policy.claim",
+        Some("test.target: Length must be at least 1"),
+    ),
+    (
+        r#"(node: (id: "a", value: none, origin: none), references: (), data: (:))"#,
+        "knowledge.local",
+        None,
+    ),
+    (
+        r#"(node: (id: "a", value: none, origin: none), references: (), data: 1)"#,
+        "knowledge.local",
+        Some("test.data: Expected dictionary. Got integer"),
+    ),
+    (
+        r#"(note: (stage: "raw-to-local", observe: x => x))"#,
+        "knowledge.registry",
+        None,
+    ),
+    (
+        r#"(note: (stage: "other", observe: x => x))"#,
+        "knowledge.registry",
+        Some(r#"test.note.stage: Unknown string `"other"`"#),
+    ),
+    (
+        r#"(note: (stage: "raw-to-local", observe: 1))"#,
+        "knowledge.registry",
+        Some("test.note.observe: Expected function. Got integer"),
+    ),
+    (
+        "1",
+        "knowledge.registry",
+        Some("test: Expected dictionary. Got integer"),
+    ),
+    (
+        r#"(id: "r", target: "", value: none, origin: none)"#,
+        "knowledge.reference",
+        Some("test.target: Length must be at least 1"),
+    ),
+    (
+        r#"(graph: (nodes: ("a",), edges: (:)), values: (nodes: (a: 1), edges: (:)))"#,
+        "schema.state",
+        None,
+    ),
+    (
+        "(graph: (nodes: (1,), edges: (:)), values: (nodes: (:), edges: (:)))",
+        "schema.state",
+        Some("test.graph.nodes.0: Expected str. Got integer"),
+    ),
+    (
+        r#"(graph: (nodes: (), edges: (:)), values: (nodes: ("": 1), edges: (:)))"#,
+        "schema.state",
+        Some("test.values.nodes..key: Length must be at least 1"),
+    ),
+    (
+        "(nodes: none, edges: ())",
+        "schema.fragment",
+        Some("test.nodes: Expected array. Got none"),
+    ),
+    (
+        "(nodes: (), edges: auto)",
+        "schema.fragment",
+        Some("test.edges: Expected array. Got none"),
+    ),
+    (
+        r#"(id: "e", source: "a", target: none, value: none, origin: none)"#,
+        "schema.edge-declaration",
+        Some("test.target: Expected str. Got none"),
+    ),
+];
+
+#[test]
+fn boundary_schema_errors_are_stable() {
+    let mut runtime = runtime();
+    for (value, ty, expected) in BOUNDARY_CASES {
+        let result = check(&mut runtime, value, ty);
+        match expected {
+            None => {
+                result.unwrap_or_else(|error| panic!("{ty} {value}: {error}"));
+            }
+            Some(message) => {
+                // Diagnostics are Debug-formatted, so quotes arrive escaped.
+                let error = result.unwrap_err().replace("\\\"", "\"");
+                let expected = format!("Schema validation failed on {message}");
+                assert!(error.contains(&expected), "{ty} {value}: {error}");
+            }
+        }
+    }
+}
