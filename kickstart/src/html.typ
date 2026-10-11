@@ -1,23 +1,16 @@
 #import "content.typ": display-value, without-root
-#import "project.typ": project-notes
-#import "evaluation.typ": final-observation
-
-#let route(note) = note.id + "/index.html"
-
-// A card lays out one note: id, title, body (with its root heading), main (the
-// body without it), metadata, backlinks and links. Its links are ordinary refs
-// to note labels.
-#let card(note) = {
-  note.body
-  if note.backlinks.len() > 0 [
-    Backlinks: #note.backlinks.map(it => ref(label(it.id))).join[, ]
-  ]
-}
 
 // The note whose card is being rendered: the source of the links inside it.
 #let rendering = state("zettypst.rendering", none)
 
-#let export-html(project, result, route: route, card: card) = {
+#let export-html(
+  project,
+  result,
+  final-observation: none,
+  project-notes: none,
+  route: none,
+  card: none,
+) = {
   let state = final-observation(result.program, result.execution)
   assert(state != none, message: "semantic evaluation failed")
   let bodies = project.notes.map(it => (it.local.node.id, it.body)).to-dict()

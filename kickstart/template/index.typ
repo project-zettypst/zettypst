@@ -1,11 +1,12 @@
-#import ".zettypst/lib.typ": evaluate, load, publish
+#import ".zettypst/lib.typ": evaluate, final-observation, load, publish
 
 #let project = load()
 #assert.eq(project.issues, ())
 #let result = evaluate(project)
-#assert.eq(result.execution.results.semantic.side, "left", message: repr(
-  result.execution.results.semantic,
-))
+#assert(
+  final-observation(result.program, result.execution) != none,
+  message: "semantic evaluation failed",
+)
 #publish(project, result.program, result.execution, editor: false)
 
 // Use the target heading's title for ordinary references.

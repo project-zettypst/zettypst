@@ -85,9 +85,9 @@
 
 #let meta-items(meta) = {
   let items = ()
-  let relation = meta.at("relation", default: none)
-  if type(relation) == dictionary and relation.value != "active" {
-    items.push(html.span(class: "status", relation.value))
+  let lifecycle = meta.at("lifecycle", default: none)
+  if type(lifecycle) == dictionary and lifecycle.value != "active" {
+    items.push(html.span(class: "status", lifecycle.value))
   }
   let tags = meta.at("tags", default: ())
   if tags.len() > 0 { items.push(tags.join(", ")) }

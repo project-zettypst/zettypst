@@ -68,7 +68,7 @@ return {
       active = {
         default = true,
         test = function(n)
-          return type(n.metadata.relation) == "table" and n.metadata.relation.value == "active"
+          return type(n.metadata.lifecycle) == "table" and n.metadata.lifecycle.value == "active"
         end,
       },
     },

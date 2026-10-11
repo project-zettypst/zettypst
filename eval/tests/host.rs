@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{collections::BTreeMap, fs, path::Path, process::Command};
 use typst::foundations::{Dict, Value};
 use zettyp_eval::{Runtime, WorldOptions};
 
@@ -25,16 +25,22 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let root = tempfile::tempdir()?;
     let packages = tempfile::tempdir()?;
-    for (name, dir) in [
-        ("zettyp-core", "core"),
-        ("zettyp-lsp", "lsp/typst"),
-        ("zettyp-host", "host/typst"),
-    ] {
-        copy(
-            &repo.join(dir),
-            &packages.path().join(format!("preview/{name}/0.1.0")),
-        )?;
-    }
+    let packaged = Command::new("python3")
+        .current_dir(repo)
+        .args([
+            "-c",
+            "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); \
+             from package_typst import ROOT, assemble; \
+             [assemble(ROOT / source, Path(sys.argv[1]).resolve()) \
+             for source in ('core', 'lsp/typst', 'host/typst')]",
+        ])
+        .arg(packages.path())
+        .output()?;
+    anyhow::ensure!(
+        packaged.status.success(),
+        "package assembly failed: {}",
+        String::from_utf8_lossy(&packaged.stderr)
+    );
     copy(&repo.join("kickstart/template"), root.path())?;
     let manifest = "# Registered notes\npaths = [\"note/welcome.typ\"]\n";
     fs::write(root.path().join(".zettypst/source.toml"), manifest)?;

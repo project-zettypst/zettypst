@@ -28,10 +28,23 @@ def package_files(source: Path) -> tuple[dict, dict[Path, Path]]:
         if path.is_symlink():
             raise ValueError(f"Package source must not contain symlinks: {path}")
         if path.is_file():
-            files[relative] = path
+            destination = (
+                Path("core") / relative
+                if source == ROOT / "core" and path.suffix == ".typ"
+                else relative
+            )
+            files[destination] = path
 
     if source == ROOT / "core":
         kickstart = ROOT / "kickstart"
+        for path in sorted(kickstart.rglob("*")):
+            relative = path.relative_to(kickstart)
+            if relative.parts[0] == "template" or "tests" in relative.parts:
+                continue
+            if path.is_symlink():
+                raise ValueError(f"Kickstart source must not contain symlinks: {path}")
+            if path.is_file() and path.suffix == ".typ":
+                files[Path("kickstart") / relative] = path
         for path in sorted((kickstart / "template").rglob("*")):
             if path.is_symlink():
                 raise ValueError(f"Template must not contain symlinks: {path}")
@@ -41,6 +54,8 @@ def package_files(source: Path) -> tuple[dict, dict[Path, Path]]:
             files[Path(name)] = kickstart / name
 
     required = ["typst.toml", "LICENSE", "README.md", package["entrypoint"]]
+    if source == ROOT / "core":
+        required.append("kickstart/lib.typ")
     if template := config.get("template"):
         required.extend(
             [

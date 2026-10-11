@@ -1,7 +1,4 @@
-#import "@preview/zettyp-lsp:0.1.0" as lsp
-#import "vocabulary.typ": colors
-#import "content.typ": display-value
-#import "project.typ": project-notes
+#import "note.typ": reference-color
 #import "evaluation.typ": evaluation-issues
 
 // Navigation belongs to the initial graph, independently of policy success.
@@ -12,7 +9,7 @@
     .edges
     .pairs()
     .filter(((id, edge)) => (
-      project.state.values.edges.at(id).relation == colors.ref
+      project.state.values.edges.at(id).relation == reference-color
     ))
   let incoming = (:)
   for (edge-id, edge) in edges {
@@ -38,7 +35,14 @@
   )
 }
 
-#let announce-editor(project, execution, final) = {
+#let announce-editor(
+  lsp,
+  project,
+  execution,
+  final,
+  project-notes: none,
+  hover: none,
+) = {
   let targets = navigation(project)
   for target in targets {
     lsp.announce(lsp.effect-kinds.definition, lsp.definition(
@@ -59,21 +63,7 @@
       let note = notes.at(target.id)
       lsp.announce(lsp.effect-kinds.hover, lsp.hover(
         applies-to: target.origin,
-        contents: (
-          kind: "plaintext",
-          value: display-value(note.title)
-            + "\n@"
-            + note.id
-            + "\n\n"
-            + note
-              .metadata
-              .keys()
-              .sorted()
-              .map(key => (
-                key + ": " + display-value(note.metadata.at(key))
-              ))
-              .join("\n"),
-        ),
+        contents: hover(note),
       ))
     }
   }
