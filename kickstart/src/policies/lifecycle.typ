@@ -2,7 +2,9 @@
 #import "../../../core/policy/lib.typ" as policy
 #import "../../../core/semantic.typ"
 #import "../../../core/vocabulary.typ"
-#import "../relations.typ": dependency-groups, neighbors, reachable
+#import "../relations.typ": (
+  dependency-groups, neighbor-index, neighbors, reachable,
+)
 
 #let issues(state, origins, colors) = {
   let groups = dependency-groups(state, colors)
@@ -67,23 +69,29 @@
       and replaces != evolves-from,
     message: "lifecycle relations must be distinct registered colors",
   )
-  let derive(state) = graph.assign(
-    state,
-    nodes: state
-      .values
-      .nodes
-      .pairs()
-      .map(((id, value)) => {
-        let has(color) = (
-          neighbors(state, id, color: color, direction: "incoming").len() > 0
-        )
-        let next = if has(replaces) { archived } else if has(evolves-from) {
-          legacy
-        } else { value.at(field) }
-        (id, value + ((field): next))
-      })
-      .to-dict(),
-  )
+  let derive(state) = {
+    let index = neighbor-index(state, (
+      replaces: (color: replaces, direction: "incoming"),
+      evolves-from: (color: evolves-from, direction: "incoming"),
+    ))
+    graph.assign(
+      state,
+      nodes: state
+        .values
+        .nodes
+        .pairs()
+        .map(((id, value)) => {
+          let has(name) = neighbors(index, id, name).len() > 0
+          let next = if has("replaces") { archived } else if has(
+            "evolves-from",
+          ) {
+            legacy
+          } else { value.at(field) }
+          (id, value + ((field): next))
+        })
+        .to-dict(),
+    )
+  }
   policy.definition(
     1,
     states => derive(states.first()),

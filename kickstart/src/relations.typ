@@ -11,27 +11,62 @@
   body
 }
 
-/// Query one color and direction; parallel occurrences yield one neighbor.
-#let neighbors(state, id, color: none, direction: none) = {
-  assert(vocabulary.enum-value(color), message: "expected a relation color")
-  assert(
-    direction in ("incoming", "outgoing"),
-    message: "unknown edge direction",
+/// Build named neighbor views once per state, outside the node loop.
+#let neighbor-index(state, projections) = {
+  let topology = graph.schema.checked(state.graph, graph.schema.graph)
+  let queries = projections
+    .pairs()
+    .map(((name, query)) => {
+      let query = graph.schema.checked(query, graph.schema.record(
+        "NeighborQuery",
+        (
+          color: graph.schema.opaque,
+          direction: graph.schema.one-of(("incoming", "outgoing")),
+        ),
+      ))
+      assert(
+        vocabulary.enum-value(query.color),
+        message: "expected a relation color",
+      )
+      let incoming = query.direction == "incoming"
+      (
+        name: name,
+        color: query.color,
+        node: if incoming { "target" } else { "source" },
+        neighbor: if incoming { "source" } else { "target" },
+      )
+    })
+  let views = projections.keys().map(name => (name, (:))).to-dict()
+  for (id, edge) in topology.edges {
+    for query in queries {
+      if state.values.edges.at(id).relation != query.color { continue }
+      let node = edge.at(query.node)
+      let view = views.at(query.name)
+      view.insert(node, view.at(node, default: ()) + (edge.at(query.neighbor),))
+      views.insert(query.name, view)
+    }
+  }
+  (
+    nodes: topology.nodes.map(id => (id, true)).to-dict(),
+    views: views
+      .pairs()
+      .map(((name, view)) => (
+        name,
+        view.pairs().map(((id, ids)) => (id, ids.dedup())).to-dict(),
+      ))
+      .to-dict(),
   )
-  let incoming = direction == "incoming"
-  let edges = if incoming { graph.incoming } else { graph.outgoing }
-  let endpoint = if incoming { "source" } else { "target" }
-  edges(state.graph, id)
-    .filter(edge => state.values.edges.at(edge).relation == color)
-    .map(edge => state.graph.edges.at(edge).at(endpoint))
-    .dedup()
 }
 
-#let project-neighbors(state, id, projections) = (
-  projections
-    .pairs()
-    .map(((name, query)) => (name, neighbors(state, id, ..query)))
-    .to-dict()
+/// Query a prepared view; preserve first-occurrence order and isolated nodes.
+#let neighbors(index, id, name) = {
+  graph.require-id(id)
+  assert(id in index.nodes, message: "unknown node: " + id)
+  index.views.at(name).at(id, default: ())
+}
+
+#let project-neighbors(index, id) = (
+  index.views.keys().map(name => (name, neighbors(index, id, name))).to-dict()
 )
 
 /// Group the selected relation view without changing original occurrences.

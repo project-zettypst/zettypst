@@ -1,6 +1,6 @@
 #import "../../core/knowledge/lib.typ" as knowledge
 #import "note.typ": observations
-#import "relations.typ": project-neighbors
+#import "relations.typ": neighbor-index, project-neighbors
 
 /// Read through project-owned callbacks; package paths never address project files.
 #let load(manifest: none, read: none) = {
@@ -30,14 +30,15 @@
   knowledge.assemble(notes.map(note => note.local)) + (notes: notes)
 }
 
-#let project-notes(project, state, projections: (:)) = project.notes.map(
-  note => {
+#let project-notes(project, state, projections: (:)) = {
+  let index = neighbor-index(state, projections)
+  project.notes.map(note => {
     let id = note.local.node.id
     let data = project.data.at(id)
     let metadata = (
       data.metadata,
       state.values.nodes.at(id),
-      project-neighbors(state, id, projections),
+      project-neighbors(index, id),
     ).fold((:), (fields, part) => {
       for key in part.keys() {
         assert(key not in fields, message: "conflicting metadata field: " + key)
@@ -51,5 +52,5 @@
       metadata: metadata,
       origin: project.origins.nodes.at(id),
     )
-  },
-)
+  })
+}
