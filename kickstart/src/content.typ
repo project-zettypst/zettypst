@@ -2,44 +2,43 @@
 
 #let emit = metadata
 
-// References and metadata are leaves; payloads and supplements are not bodies.
-#let children(body, deep: false) = {
-  if body.func() in (ref, emit) { return none }
-  let fields = body.fields()
-  let keys = (
-    ("children",)
-      + if deep {
-        ("child", "body")
-      } else if "styles" in fields { ("child",) } else { () }
-  )
-  let key = keys.find(key => key in fields)
-  if key != none { fields.at(key) }
-}
-
 /// Walk sequences and styles, optionally descending into rendered bodies.
 #let elements(body, deep: false) = {
   if type(body) == array {
     return body.map(elements.with(deep: deep)).flatten()
   }
   if type(body) != content { return () }
-  let nested = children(body, deep: deep)
+  // References and metadata are leaves; payloads and supplements are not bodies.
+  if body.func() in (ref, emit) { return (body,) }
+  let fields = body.fields()
+  // Keep this hot path inline instead of calling a selector per element.
+  let nested = if "children" in fields { fields.children } else if (
+    (deep or "styles" in fields) and "child" in fields
+  ) { fields.child } else if deep and "body" in fields { fields.body }
   if nested == none { (body,) } else { elements(nested, deep: deep) }
 }
 
-#let declarations(body, protocol, deep: false) = (
-  elements(body, deep: deep)
-    .filter(it => it.func() == emit)
-    .map(it => it.value)
-    .filter(value => (
+#let declarations(body, protocol, deep: false) = {
+  let found = ()
+  for element in elements(body, deep: deep) {
+    if element.func() != emit { continue }
+    let value = element.value
+    if (
       type(value) == dictionary
         and value.at("protocol", default: none) == protocol
         and value.at("version", default: none) == 1
-    ))
-)
+    ) { found.push(value) }
+  }
+  found
+}
 
-#let references(body) = elements(body, deep: true).filter(it => (
-  it.func() == ref
-))
+#let references(body) = {
+  let found = ()
+  for element in elements(body, deep: true) {
+    if element.func() == ref { found.push(element) }
+  }
+  found
+}
 
 /// Remove the root label through sequences and styles, preserving other bodies.
 #let without-root(body, id) = {
