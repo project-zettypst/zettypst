@@ -68,7 +68,10 @@
 #let display-value(value) = {
   if vocabulary.enum-value(value) { return display-value(value.value) }
   if type(value) == content {
-    return elements(value, deep: true).map(text-fragment).join()
+    return elements(value, deep: true)
+      .map(text-fragment)
+      .map(display-value)
+      .join()
   }
   if type(value) == array { return value.map(display-value).join(", ") }
   if type(value) in (str, label) { str(value) } else { repr(value) }
