@@ -54,13 +54,14 @@ end
 -- Title refreshes must not block editor input while Typst evaluates.
 -- Neither form names a buffer: the client then flushes edits from every buffer,
 -- all of which the evaluation reads.
+-- Failures pass the error data on: only Typst compile failures carry a revision.
 function M.eval_async(ctx, entry, done)
   return ctx.client:request("workspace/executeCommand", {
     command = "zettyp.eval",
     arguments = { { entry = entry } },
   }, function(err, result)
     if err then
-      done(err.message, nil, err.code)
+      done(err.message, nil, err.code, err.data)
       return
     end
     if type(result) ~= "table" or type(result.revision) ~= "number" or type(result.output) ~= "table" then

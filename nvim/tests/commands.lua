@@ -6,7 +6,7 @@ end
 
 require("zettypst").setup({})
 assert(config.options.capture == nil, "capture must be opt-in")
-assert(vim.deep_equal(complete("Zet "), { "delete", "new", "search" }))
+assert(vim.deep_equal(complete("Zet "), { "delete", "new", "search", "status" }))
 
 require("zettypst").setup(require("zettypst.presets.kickstart"))
 local capture = config.options.capture
@@ -21,7 +21,7 @@ vim.notify = function(message)
 end
 vim.cmd("Zet nonsense")
 vim.notify = notify
-assert(notified == "use :Zet capture|delete|new|search", notified)
+assert(notified == "use :Zet capture|delete|new|search|status", notified)
 
 local preset = vim.deepcopy(require("zettypst.presets.kickstart"))
 preset.picker.filters = { active = false }

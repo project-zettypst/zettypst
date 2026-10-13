@@ -75,6 +75,33 @@ function M.dispatch(name, args)
     vim.notify(tostring(reason), vim.log.levels.ERROR)
   end
 end
+local function status()
+  local snapshot = require("zettypst.snapshot")
+  local buf = vim.api.nvim_get_current_buf()
+  snapshot.attach(buf, false)
+  local state = snapshot.status(buf)
+  if not state then
+    vim.notify("Zet: no zettyp-lsp project is attached to this buffer", vim.log.levels.INFO)
+    return
+  end
+  local lines = {
+    ("Zet nodes (%s): %s"):format(
+      state.entry,
+      state.revision and ("index at revision " .. state.revision .. (state.current and "" or ", stale"))
+        or "no index yet"
+    ),
+  }
+  if state.pending then
+    lines[#lines + 1] = "evaluation pending"
+  end
+  if state.error then
+    lines[#lines + 1] = (state.error.source and "Typst source failed to compile:" or "evaluation failed:")
+      .. "\n"
+      .. state.error.message
+  end
+  local level = state.error and not state.error.source and vim.log.levels.WARN or vim.log.levels.INFO
+  vim.notify(table.concat(lines, "\n"), level)
+end
 local subcommands = {}
 -- Optional modules add their own subcommands during setup.
 function M.register(name, run, choices)
@@ -87,6 +114,7 @@ function M.setup()
       M.dispatch(name, args)
     end)
   end
+  M.register("status", status)
   vim.api.nvim_create_user_command("Zet", function(args)
     local subcommand = subcommands[args.fargs[1]]
     if not subcommand then

@@ -56,9 +56,13 @@ function M.drop(client_id)
   changed()
 end
 
-local function report(p, message)
-  if p.error ~= message then
-    p.error = message
+-- Half-typed sources routinely fail to compile, and the Typst language server
+-- already reports those diagnostics. Source failures therefore stay silent
+-- behind the last index and surface only through :Zet status.
+local function report(p, message, source)
+  local previous = p.error
+  p.error = { message = message, source = source == true }
+  if not source and not (previous and previous.message == message) then
     vim.notify("Zet nodes: " .. message, vim.log.levels.WARN)
   end
 end
@@ -82,14 +86,15 @@ local function invalidate(p)
   schedule(p)
 end
 
-local function accept(p, tag, err, result, code)
+local function accept(p, tag, err, result, code, data)
   if tag ~= p.changes then
     schedule(p) -- Superseded responses, including failures, cannot settle newer edits.
   elseif err then
     if code == transport.CONTENT_MODIFIED then
       invalidate(p)
     else
-      report(p, err) -- Keep the last successful index.
+      -- Keep the last successful index.
+      report(p, err, type(data) == "table" and data.revision ~= nil)
     end
   else
     local ok, index = pcall(nodes.build, result.output["host.node"] or {}, result.revision)
@@ -111,10 +116,10 @@ request = function(p)
   end
   local tag, id = p.changes, nil
   local accepted
-  accepted, id = transport.eval_async({ client = p.client }, p.entry, function(err, result, code)
+  accepted, id = transport.eval_async({ client = p.client }, p.entry, function(err, result, code, data)
     if alive(p) and p.inflight == id then
       p.inflight = nil
-      accept(p, tag, err, result, code)
+      accept(p, tag, err, result, code, data)
     end
   end)
   if not accepted then
@@ -203,6 +208,20 @@ end
 
 function M.get(buf)
   return owners[buf] and owners[buf].index
+end
+
+function M.status(buf)
+  local p = owners[buf]
+  if not p then
+    return nil
+  end
+  return {
+    entry = p.entry,
+    revision = p.index and p.index.revision,
+    current = p.index ~= nil and p.fresh == p.changes,
+    pending = p.inflight ~= nil or p.sent ~= p.changes,
+    error = p.error and vim.deepcopy(p.error),
+  }
 end
 
 -- Commands need the current index; reuse the live one unless edits outran it.
