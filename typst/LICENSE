@@ -1,3 +1,9 @@
+Licensing scope
+
+Files under kickstart/template/ are licensed under MIT-0 (MIT No Attribution),
+as stated in kickstart/template/LICENSE. All other files in this package are
+licensed under the MIT License below.
+
 MIT License
 
 Copyright (c) 2026 Xinyu Xiang
