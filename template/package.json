@@ -1,0 +1,20 @@
+{
+  "name": "zettypst-grove",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A place for connected notes.",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "5.18.2",
+    "zettypst-site": "0.1.0"
+  }
+}

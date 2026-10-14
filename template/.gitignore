@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.astro/
+.zettypst/cache/
+.DS_Store
