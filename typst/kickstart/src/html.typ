@@ -1,5 +1,5 @@
 #import "content.typ": display-value, without-root
-#import "card.typ": card
+#import "card.typ": card, frontmatter
 
 #import "../../site/lib.typ" as site
 
