@@ -10,4 +10,4 @@ Enable developer mode at `chrome://extensions` and load this directory as an unp
 
 Click **Check native host** in the extension to verify the connection, then capture the current page or PDF.
 
-[Configuration](../../docs/capture.md) [MIT](../../LICENSE)
+[MIT](../../LICENSE)
