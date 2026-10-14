@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 use typst::foundations::Dict;
-use typst::syntax::{FileId, VirtualPath};
+use typst::syntax::{FileId, RootedPath, VirtualPath, VirtualRoot};
 use zettyp_eval::Runtime;
 
 struct Fixture(PathBuf);
@@ -44,7 +44,10 @@ fn disk_updates_reuse_sources_and_recover_from_errors() {
     let mut runtime = Runtime::new(&fixture.0).unwrap();
     let old = runtime.evaluate("main.typ", Dict::new()).unwrap();
     let unchanged = runtime.evaluate("main.typ", Dict::new()).unwrap();
-    let id = FileId::new(None, VirtualPath::new("dep.typ"));
+    let id = FileId::new(RootedPath::new(
+        VirtualRoot::Project,
+        VirtualPath::new("dep.typ").unwrap(),
+    ));
     let source = old.sources.source(id).unwrap();
     assert_eq!(
         source.text().as_ptr(),

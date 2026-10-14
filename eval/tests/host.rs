@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::BTreeMap, fs, path::Path, process::Command};
+use std::{collections::BTreeMap, fs, path::Path};
 use typst::foundations::{Dict, Value};
 use zettyp_eval::{Runtime, WorldOptions};
 
@@ -25,23 +25,11 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let root = tempfile::tempdir()?;
     let packages = tempfile::tempdir()?;
-    let packaged = Command::new("python3")
-        .current_dir(repo)
-        .args([
-            "-c",
-            "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); \
-             from package_typst import ROOT, assemble; \
-             [assemble(ROOT / source, Path(sys.argv[1]).resolve()) \
-             for source in ('core', 'lsp/typst', 'host/typst')]",
-        ])
-        .arg(packages.path())
-        .output()?;
-    anyhow::ensure!(
-        packaged.status.success(),
-        "package assembly failed: {}",
-        String::from_utf8_lossy(&packaged.stderr)
-    );
-    copy(&repo.join("kickstart/template"), root.path())?;
+    copy(
+        &repo.join("typst"),
+        &packages.path().join("preview/zettyp/0.1.0"),
+    )?;
+    copy(&repo.join("typst/kickstart/template"), root.path())?;
     let manifest = "# Registered notes\npaths = [\"note/welcome.typ\"]\n";
     fs::write(root.path().join(".zettypst/source.toml"), manifest)?;
     let mut runtime = Runtime::new_with_options(
@@ -153,8 +141,8 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     assert!(result.result.output.is_ok(), "{:?}", result.result.output);
     fs::write(
         root.path().join("result.typ"),
-        r#"#import "@preview/zettyp-core:0.1.0": eval
-#import "@preview/zettyp-host:0.1.0" as host
+        r#"#import "@preview/zettyp:0.1.0": core, host
+#import core: eval
 #eval.announce(<host.plan>, host.plan((), (entry: "verify.typ", inputs: (:)),
   result: (created: false, key: none, nested: (values: (1, "value")))))"#,
     )?;
@@ -174,7 +162,7 @@ fn kickstart_plans_verify_in_virtual_workspace() -> Result<()> {
     ] {
         fs::write(
             root.path().join("bad.typ"),
-            format!("#import \"@preview/zettyp-host:0.1.0\" as host\n#{expr}"),
+            format!("#import \"@preview/zettyp:0.1.0\" : host\n#{expr}"),
         )?;
         assert!(
             runtime

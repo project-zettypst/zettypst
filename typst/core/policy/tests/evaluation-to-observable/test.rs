@@ -5,8 +5,11 @@ use typst::foundations::Dict;
 use zettyp_eval::Runtime;
 
 fn evaluate_fixture() -> Value {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    let mut runtime = Runtime::new(root).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("typst");
+    let mut runtime = Runtime::new(&root).unwrap();
     let evaluation = runtime
         .evaluate(
             "core/policy/tests/evaluation-to-observable/main.typ",

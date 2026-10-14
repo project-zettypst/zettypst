@@ -10,23 +10,23 @@ description = "Persistent Typst evaluation and source provenance for ZetTypst"
 # Core owns these tests; eval supplies its runtime and test harness.
 [[test]]
 name = "core-schema"
-path = "../core/tests/schema/test.rs"
+path = "../typst/core/tests/schema/test.rs"
 
 [[test]]
 name = "core-knowledge-local-to-observable"
-path = "../core/knowledge/tests/local-to-observable/test.rs"
+path = "../typst/core/knowledge/tests/local-to-observable/test.rs"
 
 [[test]]
 name = "core-policy-assembly-to-observable"
-path = "../core/policy/tests/assembly-to-observable/test.rs"
+path = "../typst/core/policy/tests/assembly-to-observable/test.rs"
 
 [[test]]
 name = "core-policy-evaluation-to-observable"
-path = "../core/policy/tests/evaluation-to-observable/test.rs"
+path = "../typst/core/policy/tests/evaluation-to-observable/test.rs"
 
 [[test]]
 name = "core-policy-verified-observation"
-path = "../core/policy/tests/verified-observation/test.rs"
+path = "../typst/core/policy/tests/verified-observation/test.rs"
 
 [dependencies]
 anyhow = "1"
@@ -35,10 +35,13 @@ clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-typst = "0.14.2"
-typst-kit = { version = "0.14.2", default-features = false, features = [
-  "embed-fonts",
-  "packages",
+typst = "0.15.1"
+typst-layout = "0.15.1"
+typst-kit = { version = "0.15.1", default-features = false, features = [
+  "embedded-fonts",
+  "scan-fonts",
+  "system-packages",
+  "system-downloader",
 ] }
 
 [dev-dependencies]

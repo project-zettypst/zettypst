@@ -31,9 +31,12 @@ fn assert_origin(origin: &Value, path: &Path, expected: &str) {
 
 #[test]
 fn local_observations_reach_external_consumers_with_source_locations() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("typst");
     let fixtures = root.join("core/knowledge/tests/local-to-observable");
-    let mut runtime = Runtime::new(root).unwrap();
+    let mut runtime = Runtime::new(&root).unwrap();
     let evaluation = runtime
         .evaluate(
             "core/knowledge/tests/local-to-observable/main.typ",

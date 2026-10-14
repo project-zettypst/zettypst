@@ -6,7 +6,10 @@ use typst::foundations::Dict;
 use zettyp_eval::{Runtime, WorldOptions};
 
 fn runtime() -> Runtime {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("typst");
     Runtime::new_with_options(
         root,
         WorldOptions {

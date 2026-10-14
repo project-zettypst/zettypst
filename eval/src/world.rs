@@ -10,15 +10,15 @@ use crate::dependencies::{Dependencies, Dependency, PackageDependency, content_h
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Datelike, FixedOffset, Local};
 use typst::diag::{FileError, FileResult};
-use typst::foundations::{Bytes, Datetime, Dict};
+use typst::foundations::{Bytes, Datetime, Dict, Duration};
 use typst::syntax::package::PackageSpec;
-use typst::syntax::{FileId, Source, Span, VirtualPath};
+use typst::syntax::{DiagSpan, DiagSpanKind, FileId, RootedPath, Source, VirtualPath, VirtualRoot};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt, World};
-use typst_kit::download::{Downloader, ProgressSink};
-use typst_kit::fonts::{FontSearcher, FontSlot};
-use typst_kit::package::PackageStorage;
+use typst_kit::downloader::SystemDownloader;
+use typst_kit::fonts::{self, FontStore};
+use typst_kit::packages::{FsPackages, SystemPackages, UniversePackages};
 
 /// Host environment shared by all evaluations in a runtime.
 /// Fonts are discovered when the runtime is created.
@@ -37,10 +37,10 @@ pub struct ProjectWorld {
     inputs: Dict,
     library: LazyHash<Library>,
     book: LazyHash<FontBook>,
-    fonts: Vec<FontSlot>,
+    fonts: FontStore,
     slots: Mutex<HashMap<FileId, FileSlot>>,
     overrides: HashMap<FileId, Option<Bytes>>,
-    packages: PackageStorage,
+    packages: SystemPackages,
     package_roots: Mutex<HashMap<PackageSpec, PathBuf>>,
     now: DateTime<Local>,
     observed_book: AtomicBool,
@@ -66,13 +66,27 @@ impl ProjectWorld {
             bail!("project root must be a directory");
         }
         let main = entry_id(entry.as_ref())?;
-        let fonts = FontSearcher::new()
-            .include_system_fonts(!options.ignore_system_fonts)
-            .search_with(&options.font_paths);
-        let packages = PackageStorage::new(
-            options.package_cache_path,
-            options.package_path,
-            Downloader::new(concat!("zettyp-eval/", env!("CARGO_PKG_VERSION"))),
+        let mut fonts = FontStore::new();
+        for path in &options.font_paths {
+            fonts.extend(fonts::scan(path));
+        }
+        if !options.ignore_system_fonts {
+            fonts.extend(fonts::system());
+        }
+        fonts.extend(fonts::embedded());
+        let packages = SystemPackages::from_parts(
+            options
+                .package_path
+                .map(FsPackages::new)
+                .or_else(FsPackages::system_data),
+            options
+                .package_cache_path
+                .map(FsPackages::new)
+                .or_else(FsPackages::system_cache),
+            UniversePackages::new(SystemDownloader::new(concat!(
+                "zettyp-eval/",
+                env!("CARGO_PKG_VERSION")
+            ))),
         );
         let library = Library::builder().with_inputs(inputs.clone()).build();
 
@@ -81,8 +95,8 @@ impl ProjectWorld {
             main,
             inputs,
             library: LazyHash::new(library),
-            book: LazyHash::new(fonts.book),
-            fonts: fonts.fonts,
+            book: fonts.book().clone(),
+            fonts,
             slots: Mutex::new(HashMap::new()),
             overrides: HashMap::new(),
             packages,
@@ -140,20 +154,20 @@ impl ProjectWorld {
     }
 
     pub fn path_for(&self, id: FileId) -> FileResult<PathBuf> {
-        let Some(spec) = id.package() else {
+        let VirtualRoot::Package(spec) = id.root() else {
             return id
                 .vpath()
-                .resolve(&self.root)
-                .ok_or(FileError::AccessDenied);
+                .realize(&self.root)
+                .map_err(|_| FileError::AccessDenied);
         };
         let mut roots = self.package_roots.lock().unwrap();
         if !roots.contains_key(spec) {
-            let root = self.packages.prepare_package(spec, &mut ProgressSink)?;
+            let root = self.packages.obtain(spec)?.path().to_path_buf();
             roots.insert(spec.clone(), root);
         }
         id.vpath()
-            .resolve(&roots[spec])
-            .ok_or(FileError::AccessDenied)
+            .realize(&roots[spec])
+            .map_err(|_| FileError::AccessDenied)
     }
 
     /// Capture the sources actually observed in this evaluation, without disk IO.
@@ -216,8 +230,8 @@ impl ProjectWorld {
         for (spec, resolved) in self.package_roots.lock().unwrap().iter() {
             let suffix = format!("{}/{}/{}", spec.namespace, spec.name, spec.version);
             let candidates = [
-                self.packages.package_path(),
-                self.packages.package_cache_path(),
+                self.packages.data().map(FsPackages::path),
+                self.packages.cache().map(FsPackages::path),
             ]
             .into_iter()
             .flatten()
@@ -239,15 +253,17 @@ impl ProjectWorld {
             .unwrap()
             .iter()
             .filter(|(id, slot)| {
-                slot.accessed && id.package().is_none() && !self.overrides.contains_key(id)
+                slot.accessed
+                    && matches!(id.root(), VirtualRoot::Project)
+                    && !self.overrides.contains_key(id)
             })
             .filter_map(|(id, slot)| match &slot.bytes {
                 Some(Ok(bytes)) => Some((
-                    id.vpath().as_rootless_path().to_owned(),
+                    PathBuf::from(id.vpath().get_without_slash()),
                     Some(content_hash(bytes)),
                 )),
                 Some(Err(FileError::NotFound(_))) => {
-                    Some((id.vpath().as_rootless_path().to_owned(), None))
+                    Some((PathBuf::from(id.vpath().get_without_slash()), None))
                 }
                 _ => None,
             })
@@ -273,7 +289,7 @@ impl ProjectWorld {
             let bytes = if let Some(bytes) = self.overrides.get(&id) {
                 bytes
                     .clone()
-                    .ok_or_else(|| FileError::NotFound(id.vpath().as_rootless_path().into()))
+                    .ok_or_else(|| FileError::NotFound(id.vpath().get_without_slash().into()))
             } else {
                 self.path_for(id).and_then(|path| {
                     fs::read(&path)
@@ -315,15 +331,19 @@ impl World for ProjectWorld {
 
     fn font(&self, index: usize) -> Option<Font> {
         self.observed_font.store(true, Ordering::Relaxed);
-        self.fonts.get(index)?.get()
+        self.fonts.font(index)
     }
 
-    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+    fn today(&self, offset: Option<Duration>) -> Option<Datetime> {
         self.observed_today.store(true, Ordering::Relaxed);
         let date = match offset {
             None => self.now.date_naive(),
-            Some(hours) => {
-                let seconds = i32::try_from(hours.checked_mul(3600)?).ok()?;
+            Some(offset) => {
+                let seconds = offset.seconds();
+                if !seconds.is_finite() || seconds.abs() >= 86400.0 {
+                    return None;
+                }
+                let seconds = seconds as i32;
                 let offset = FixedOffset::east_opt(seconds)?;
                 self.now.with_timezone(&offset).date_naive()
             }
@@ -383,19 +403,26 @@ impl SourceSnapshot {
     }
 
     pub fn path_for(&self, id: FileId) -> FileResult<PathBuf> {
-        let root = match id.package() {
-            Some(spec) => self
+        let root = match id.root() {
+            VirtualRoot::Package(spec) => self
                 .package_roots
                 .get(spec)
-                .ok_or_else(|| FileError::NotFound(id.vpath().as_rootless_path().into()))?,
-            None => &self.root,
+                .ok_or_else(|| FileError::NotFound(id.vpath().get_without_slash().into()))?,
+            VirtualRoot::Project => &self.root,
         };
-        id.vpath().resolve(root).ok_or(FileError::AccessDenied)
+        id.vpath()
+            .realize(root)
+            .map_err(|_| FileError::AccessDenied)
     }
 
-    pub fn range(&self, span: Span) -> Option<Range<usize>> {
+    pub fn range(&self, span: impl Into<DiagSpan>) -> Option<Range<usize>> {
+        let span = span.into();
         let source = self.source(span.id()?)?;
-        span.range().or_else(|| source.range(span))
+        match span.get() {
+            DiagSpanKind::Detached => None,
+            DiagSpanKind::Number { num, sub_range, .. } => source.range(num, sub_range),
+            DiagSpanKind::Range { range, .. } => Some(range),
+        }
     }
 }
 
@@ -410,5 +437,7 @@ fn entry_id(entry: &Path) -> Result<FileId> {
     {
         bail!("entry must be a non-empty project-relative path without '..'");
     }
-    Ok(FileId::new(None, VirtualPath::new(entry)))
+    let path = entry.to_str().context("entry path is not valid UTF-8")?;
+    let path = VirtualPath::new(path.replace(std::path::MAIN_SEPARATOR, "/"))?;
+    Ok(FileId::new(RootedPath::new(VirtualRoot::Project, path)))
 }

@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, anyhow, bail};
 use typst::diag::Warned;
 use typst::foundations::{Array, Content, Dict, Label, NativeElement, Selector, Value};
-use typst::introspection::MetadataElem;
-use typst::layout::PagedDocument;
+use typst::introspection::{Introspector, MetadataElem};
 use typst::{World, WorldExt};
+use typst_layout::PagedDocument;
 
 use crate::world::ProjectWorld;
 
@@ -31,7 +31,7 @@ fn collect_announcements(document: &PagedDocument, world: &ProjectWorld) -> Resu
     let selector = Selector::Label(label);
     let mut grouped = Dict::new();
 
-    for announcement in document.introspector.query(&selector) {
+    for announcement in document.introspector().query(&selector) {
         if announcement.func() != MetadataElem::ELEM {
             bail!("{ANNOUNCEMENT_LABEL} must label metadata content");
         }
