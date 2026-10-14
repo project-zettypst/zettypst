@@ -14,7 +14,7 @@ else
     return 1 2>/dev/null || exit 1
 fi
 
-if [ ! -f scripts/install-local.py ] || [ ! -f core/typst.toml ]; then
+if [ ! -f scripts/install-local.py ] || [ ! -f typst/typst.toml ]; then
     printf '%s\n' 'Run source scripts/dev.sh from the ZetTypst workspace root.' >&2
     return 1
 fi
