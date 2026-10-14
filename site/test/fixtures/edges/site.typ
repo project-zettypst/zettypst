@@ -1,7 +1,8 @@
 // Two notes linking each other and themselves, laid out by the site card with
 // every view repeating the body, so copied links are rendered too.
 #import ".zettypst/lib.typ": evaluate, export-html, load
-#import "card.typ": card
+#import "@preview/zettyp:0.1.0": kickstart
+#import kickstart.site: card
 
 #let project = load()
 #assert.eq(project.issues, ())

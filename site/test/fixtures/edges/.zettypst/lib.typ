@@ -1,1 +1,0 @@
-../../../../../kickstart/template/.zettypst/lib.typ

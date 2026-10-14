@@ -1,18 +1,18 @@
 // Compile Typst math with the site's HTML rules, exactly as cards are
 // compiled, and return each <math> element Typst emits.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'node-html-parser';
 
-const rules = fileURLToPath(new URL('../typst/lib.typ', import.meta.url));
+const rules = fileURLToPath(new URL('../../typst/site/lib.typ', import.meta.url));
 
 /** Absolute paths of the Typst sources under test, for `#import`. */
 export const sources = {
   site: rules,
-  kickstart: fileURLToPath(new URL('../../kickstart/template/.zettypst/lib.typ', import.meta.url)),
+  kickstart: fileURLToPath(new URL('../../typst/kickstart/lib.typ', import.meta.url)),
 };
 
 /** Compile a Typst document to HTML and return the parsed page. */
@@ -37,13 +37,17 @@ export function typstBundle(fixture, entry = 'site.typ') {
   const root = join(work, 'project');
   const out = join(work, 'out');
   try {
+    const packages = join(work, 'packages');
+    const packageRoot = join(packages, 'preview', 'zettyp', '0.1.0');
+    mkdirSync(packageRoot, { recursive: true });
+    cpSync(fileURLToPath(new URL('../../typst/', import.meta.url)), packageRoot, { recursive: true });
     cpSync(fixtureRoot, root, { recursive: true, dereference: true, filter: () => true });
-    const modules = fileURLToPath(new URL('../../kickstart/template/.zettypst/', import.meta.url));
+    const modules = fileURLToPath(new URL('../../typst/kickstart/template/.zettypst/', import.meta.url));
     for (const file of readdirSync(modules)) {
       if (file.endsWith('.typ')) cpSync(join(modules, file), join(root, '.zettypst', file));
     }
     execFileSync(process.env.TYPST || 'typst', [
-      'compile', '--features', 'bundle,html', '--format', 'bundle', '--root', root, join(root, entry), out,
+      'compile', '--package-path', packages, '--features', 'bundle,html', '--format', 'bundle', '--root', root, join(root, entry), out,
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
     const pages = {};
     for (const file of readdirSync(out, { recursive: true })) {

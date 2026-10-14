@@ -8,7 +8,8 @@ import { sources, typstHTML } from './typst.mjs';
 const card = (views, body = '[= Note <n>\nText.]', after = '') => typstHTML(`
 #set math.equation(numbering: "(1)")
 #import "${sources.kickstart}": without-root
-#import "${sources.site}": card
+#import "${sources.kickstart}": site
+#import site: card
 #show ref: it => if it.target != <n> { it } else { link(it.target, if it.supplement in (auto, none) [Note] else { it.supplement }) }
 #let body = ${body}
 #let note = (
