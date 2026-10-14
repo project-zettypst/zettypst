@@ -1,0 +1,90 @@
+name: Publish Grove template
+
+on:
+  push:
+    tags: ["grove-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-grove
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: grove
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+      - name: Verify template version
+        working-directory: source
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('template/package.json', 'utf8'));
+          if (!/^\d+\.\d+\.\d+$/.test(pkg.version) ||
+              process.env.RELEASE_TAG !== 'grove-v' + pkg.version) {
+            throw new Error('Grove tag and template version must match');
+          }
+          JS
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: source/template/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: source/template/pnpm-lock.yaml
+      - uses: typst-community/setup-typst@v4
+        with:
+          typst-version: 0.15.0
+      - run: pnpm install --frozen-lockfile
+        working-directory: source/template
+      - run: pnpm build
+        working-directory: source/template
+        env:
+          SITE_URL: https://project-zettypst.github.io
+          BASE_PATH: /grove
+      - uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.GROVE_APP_ID }}
+          private-key: ${{ secrets.GROVE_APP_PRIVATE_KEY }}
+          owner: project-zettypst
+          repositories: grove
+      - uses: actions/checkout@v4
+        with:
+          repository: project-zettypst/grove
+          ref: main
+          path: grove
+          token: ${{ steps.app.outputs.token }}
+          fetch-depth: 0
+      - name: Synchronize template and tag release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#grove-v}"
+          target_tag="v$version"
+          if git -C grove rev-parse --verify "refs/tags/$target_tag" >/dev/null 2>&1; then
+            echo "Grove $target_tag already exists; refusing to overwrite it."
+            exit 1
+          fi
+          # Export tracked files only: never copy installed dependencies or build output.
+          mkdir export
+          git -C source archive HEAD:template | tar -x -C export
+          rsync -a --delete --exclude='.git/' export/ grove/
+          cd grove
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit --allow-empty -m "chore(release): publish Grove $version from $SOURCE_SHA"
+          git tag "$target_tag"
+          git push --atomic origin HEAD:main "refs/tags/$target_tag"
