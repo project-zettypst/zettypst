@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "description": "Astro integration that publishes a ZetTypst project as a Forester-style site with stacked reading.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/project-zettypst/zettypst.git",
+    "directory": "site"
+  },
+  "homepage": "https://github.com/project-zettypst/zettypst/tree/main/site",
+  "bugs": {
+    "url": "https://github.com/project-zettypst/zettypst/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "type": "module",
   "exports": {
     ".": "./src/integration.mjs"
