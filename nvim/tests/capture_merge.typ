@@ -1,5 +1,7 @@
-// Bibliography identity, key and merge policy of the zettyp-capture package.
-#import "../capture/lib.typ": bibtex-identity, merge-bibliography
+// Bibliography identity, key and merge policy of Kickstart capture.
+#import "../../typst/kickstart/src/capture/plan.typ": (
+  bibtex-identity, merge-bibliography,
+)
 #let before = "@article{old,\n  title = {Old Paper},\n  doi = {10.1/X}\n}\n"
 #let entries = (
   (
