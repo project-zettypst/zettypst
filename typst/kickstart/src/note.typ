@@ -107,7 +107,7 @@
   read-node(schema, body, id: root.label, root: root, metadata: metadata)
 }
 
-/// Emit a declaration without rendering or loading other notes.
+/// Discover definitions without requiring every node to have a persistent ID.
 #let zettel(schema, metadata: () => none, body) = {
   assert(
     type(metadata) == function,
@@ -115,31 +115,47 @@
   )
   let original = root-heading(body)
   let extracted = extract(body, root: original, id: original.label)
-  let records = (
-    (
-      (
-        id: original.label,
-        root: original,
-        metadata: metadata,
-        body: extracted.body,
-      ),
-    )
-      + extracted.nodes
-  )
-  records
-    .map(record => emit((
-      protocol: "zettyp.note",
-      version: 1,
-      local: read-node(
-        schema,
-        record.body,
-        id: record.id,
-        root: record.root,
-        metadata: (record.metadata)(),
-      ),
-      body: record.body,
-    )))
-    .join()
+  emit((
+    protocol: "zettyp.source",
+    version: 1,
+    schema: schema,
+    definition: (
+      id: original.label,
+      root: original,
+      metadata: metadata,
+      source-body: body,
+      body: extracted.body,
+      children: extracted.nodes,
+    ),
+  ))
 }
 
-#let observations(body) = declarations(body, "zettyp.note")
+#let definitions(body) = declarations(body, "zettyp.source")
+
+/// Flatten definitions only at the observation boundary; no temporary IDs.
+#let observe-definitions(source) = {
+  let walk(definition) = {
+    assert(
+      definition.id != none,
+      message: "note requires registration: persist an id before graph evaluation",
+    )
+    (
+      (
+        (
+          local: read-node(
+            source.schema,
+            definition.body,
+            id: definition.id,
+            root: definition.root,
+            metadata: (definition.metadata)(),
+          ),
+          body: definition.body,
+        ),
+      )
+        + definition.children.map(walk).flatten()
+    )
+  }
+  walk(source.definition)
+}
+
+#let observations(body) = definitions(body).map(observe-definitions).flatten()

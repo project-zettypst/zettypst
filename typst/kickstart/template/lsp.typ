@@ -1,7 +1,15 @@
-// Publish editor semantics without rendering note bodies.
-#import ".zettypst/lib.typ": evaluate, load, publish
+// Discover pending definitions before strict graph assembly.
+#import ".zettypst/lib.typ": (
+  announce-note-registration, discover, evaluate, load, plan-note-registration,
+  publish,
+)
 
-#let project = load()
-#assert.eq(project.issues, ())
-#let result = evaluate(project)
-#publish(project, result.program, result.execution, export: false)
+#let sources = discover()
+#let registration = plan-note-registration(sources)
+#announce-note-registration(sources, registration)
+#if registration.entries.len() == 0 {
+  let project = load(sources: sources)
+  assert.eq(project.issues, ())
+  let result = evaluate(project)
+  publish(project, result.program, result.execution, export: false)
+}

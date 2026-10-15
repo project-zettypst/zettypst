@@ -1,9 +1,9 @@
 #import "../../core/knowledge/lib.typ" as knowledge
-#import "note.typ": observations
+#import "note.typ": definitions, observe-definitions
 #import "relations.typ": neighbor-index, project-neighbors
 
 /// Read through project-owned callbacks; package paths never address project files.
-#let load(manifest: none, read: none) = {
+#let discover(manifest: none, read: none) = {
   let paths = manifest().at("paths", default: none)
   assert(
     type(paths) == array and paths.all(path => type(path) == str),
@@ -17,15 +17,25 @@
     )),
     message: "source paths must be project-relative with forward slashes",
   )
-  let notes = paths
+  paths
     .map(path => {
-      let records = observations(read(path))
+      let records = definitions(read(path))
       assert(
         records.len() > 0,
         message: "source has no zettel declaration: " + path,
       )
       records.map(record => record + (path: path))
     })
+    .flatten()
+}
+
+/// Strict graph entry: discovery can be shared with editor registration.
+#let load(manifest: none, read: none, sources: none) = {
+  if sources == none { sources = discover(manifest: manifest, read: read) }
+  let notes = sources
+    .map(source => (
+      observe-definitions(source).map(record => record + (path: source.path))
+    ))
     .flatten()
   knowledge.assemble(notes.map(note => note.local)) + (notes: notes)
 }

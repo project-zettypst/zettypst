@@ -48,7 +48,17 @@
   evolved-into: (color: colors.evolves-from, direction: "incoming"),
 )
 #let project-notes = kickstart.project-notes.with(projections: projections)
+#let discover = kickstart.discover.with(
+  manifest: sources.manifest,
+  read: sources.note,
+)
 #let load = kickstart.load.with(manifest: sources.manifest, read: sources.note)
+// Replace this callback to choose another naming policy for internal nodes.
+#let allocate-note-id = kickstart.allocate-note-id
+#let plan-note-registration = kickstart.plan-note-registration.with(
+  allocate: allocate-note-id,
+)
+#let announce-note-registration = kickstart.announce-note-registration.with(lsp)
 
 // Native policy wiring; origins are bound separately for every project.
 #let include-rule = kickstart.transclusion-policy.with(

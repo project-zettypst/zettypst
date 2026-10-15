@@ -71,10 +71,6 @@
 #let extract(body, root: none, id: none) = {
   let declaration = marker(body)
   if declaration != none {
-    assert(
-      declaration.id != none,
-      message: "note requires registration: persist an id before graph evaluation",
-    )
     let original = section-root(declaration.body)
     assert(
       root == none or heading-level(original) > heading-level(root),
@@ -82,27 +78,32 @@
     )
     let anchor = original.at("label", default: none)
     assert(
-      anchor == none or anchor == declaration.id,
+      anchor == none or (declaration.id != none and anchor == declaration.id),
       message: "note root label conflicts with its declared id",
     )
     let child = extract(declaration.body, root: original, id: declaration.id)
     (
-      body: include-content(
-        declaration.id,
-        original,
-        source-level: heading-level(original),
-      ),
+      // Pending definitions remain inert until registration; graph assembly
+      // rejects them before any reference observation takes place.
+      body: if declaration.id == none { body } else {
+        include-content(
+          declaration.id,
+          original,
+          source-level: heading-level(original),
+        )
+      },
       nodes: (
         (
           id: declaration.id,
           root: original,
           metadata: declaration.metadata,
+          source-body: declaration.body,
           body: child.body,
+          children: child.nodes,
         ),
-      )
-        + child.nodes,
+      ),
     )
-  } else if root != none and body == root {
+  } else if root != none and id != none and body == root {
     (
       body: if body.at("label", default: none) == id { body } else {
         [#body#id]

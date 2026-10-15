@@ -11,7 +11,10 @@
 #import "src/policies/lifecycle.typ": lifecycle-policy
 #import "src/transclusion/declaration.typ": include-color, include-note
 #import "src/transclusion/policy.typ": transclusion-policy
-#import "src/project.typ": load, project-notes
+#import "src/project.typ": discover, load, project-notes
+#import "src/registration.typ": (
+  allocate-note-id, announce-note-registration, plan-note-registration,
+)
 #import "src/evaluation.typ": evaluate, evaluation-issues, observe
 #import "src/editor.typ" as lsp
 #import "src/editor.typ": announce-editor, navigation
