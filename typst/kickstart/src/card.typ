@@ -25,8 +25,11 @@
   items
 }
 
-#let frontmatter(note, title) = html.header({
-  html.h1({
+#let frontmatter(note, title, heading-renderer: none) = html.header({
+  let render-heading = if heading-renderer == none { html.h1 } else {
+    heading-renderer
+  }
+  render-heading({
     title
     [ ]
     // A ref, so the slug is rendered as a link to its note like any other.
@@ -40,18 +43,43 @@
   }
 })
 
-// Collapsed trees; the site expands each from its canonical card.
-#let backmatter(title, notes) = if notes.len() > 0 {
+// Instance anchors identify rendered occurrences, never knowledge nodes.
+// This counter is deliberately separate from document heading counters.
+#let instances = counter("zettypst.embed.instance")
+
+/// Shared HTML view for source includes and relationship-list entries.
+/// The renderer has already expanded the body and resolved heading levels.
+#let embedded(note, instance) = {
+  show: html-rules
+  let render-heading = if instance.heading-renderer == none {
+    heading.with(level: instance.level)
+  } else {
+    title => (instance.heading-renderer)(title, instance.level)
+  }
+  instances.step()
+  context {
+    let anchor = "zk-instance-" + str(instances.get().first())
+    site.node(note.id, tree(
+      frontmatter(note, instance.title, heading-renderer: render-heading),
+      instance.body,
+      open: instance.open,
+      attrs: (id: anchor),
+    ))
+  }
+}
+
+// Relation queries supply targets; embedding supplies their complete mainmatter.
+// Embedded views never append another relationship list.
+#let backmatter(title, notes, embed) = if notes.len() > 0 {
+  assert(
+    type(embed) == function,
+    message: "relationship views require an embed function",
+  )
   tree(
     html.header(html.h1(title)),
-    notes
-      .map(it => tree(
-        frontmatter(it, it.title),
-        none,
-        open: false,
-        attrs: site.expand-attrs(it.id),
-      ))
-      .join(),
+    site.isolated(
+      notes.map(note => embed(note.id, context-level: 1, open: false)).join(),
+    ),
   )
 }
 
@@ -98,7 +126,7 @@
 /// Content is rendered like the card, kept inert in a `<template>`, and does
 /// not advance counters. `note.main` (the body without its root heading) can
 /// be repeated safely; other labels it holds must not be referenced twice.
-#let card(note, views: (:)) = {
+#let card(note, embed: none, views: (:)) = {
   show: html-rules
   let shown = (
     (preview: note => auto, expand: note => auto, about: about) + views
@@ -107,12 +135,17 @@
     .map(((name, view)) => (name, view(note)))
     .to-dict()
   html.elem("details", attrs: (open: "") + site.view-attrs(shown), {
-    show heading.where(level: 1): it => html.summary(frontmatter(note, it.body))
+    show heading.where(level: 1): it => {
+      if it.at("label", default: none) == label(note.id) {
+        html.summary(frontmatter(note, it.body))
+      } else { it }
+    }
     note.body
   })
   site.view-templates(shown)
   html.footer({
-    backmatter("Backlinks", note.backlinks)
-    backmatter("Related", note.links)
+    backmatter("Context", note.at("context", default: ()), embed)
+    backmatter("Backlinks", note.backlinks, embed)
+    backmatter("Related", note.links, embed)
   })
 }

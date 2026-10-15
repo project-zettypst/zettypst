@@ -1,5 +1,8 @@
-#import "content.typ": display-value, without-root
-#import "card.typ": card, frontmatter
+#import "content.typ": display-value
+#import "card.typ": card, embedded, frontmatter
+#import "transclusion/render.typ": renderer
+#import "transclusion/declaration.typ": include-color
+#import "relations.typ": ancestor-roots, neighbor-index
 
 #import "../../site/lib.typ" as site
 
@@ -10,9 +13,14 @@
   project-notes: none,
   route: none,
   card: none,
+  view: embedded,
 ) = {
   let state = final-observation(result.program, result.execution)
   assert(state != none, message: "semantic evaluation failed")
+  // Context is rooted in the complete include graph, before route filtering.
+  let includes = neighbor-index(state, (
+    parents: (color: include-color, direction: "incoming"),
+  ))
   let bodies = project.notes.map(it => (it.local.node.id, it.body)).to-dict()
   let notes = (:)
   for note in project-notes(project, state) {
@@ -36,14 +44,45 @@
     .map(it => notes.at(it))
     .filter(it => it.route != none)
 
+  // The same embedding function serves source includes and relation views.
+  // Unpublished nodes may be linked, but their bodies must not leak through
+  // a published node's transclusions.
+  let published-view(note, instance) = {
+    assert(
+      note.route != none,
+      message: "cannot embed unpublished node: " + note.id,
+    )
+    view(note, instance)
+  }
+  // Reference ownership is an explicit input, not a layout-time state.
+  let render-reference(source, reference) = {
+    let target = notes.at(str(reference.target), default: none)
+    if target == none { return reference }
+    let body = if reference.supplement in (auto, none, []) {
+      target.title
+    } else {
+      reference.supplement
+    }
+    if target.route == none { return site.unpublished(body) }
+    site.node-link(source, target.id, link(reference.target, body))
+  }
+  let render = renderer(
+    notes,
+    bodies,
+    view: published-view,
+    render-reference: render-reference,
+  )
   let published = notes.values().filter(it => it.route != none)
   let documents = (:)
   for note in published {
+    let content = (render.document-body)(note.id)
     let full = (
       note
+        + content
         + (
-          body: bodies.at(note.id),
-          main: without-root(bodies.at(note.id), note.id),
+          "context": ancestor-roots(includes, note.id, "parents").map(
+            id => notes.at(id),
+          ),
           backlinks: neighbours(note.id, "target", "source"),
           links: neighbours(note.id, "source", "target"),
         )
@@ -54,23 +93,16 @@
     )
   }
 
-  // A reference to a note renders its edge: the link names both endpoints, so
-  // the site infers neither from URLs nor from where the link was moved to.
-  // Other references stay native.
-  show ref: it => {
-    let target = notes.at(str(it.target), default: none)
-    if target == none { return it }
-    let body = if it.supplement in (auto, none, []) { target.title } else {
-      it.supplement
-    }
-    if target.route == none { return site.unpublished(body) }
-    site.node-link(target.id, link(it.target, body))
-  }
   for (path, group) in documents {
     document(
       path,
       title: display-value(group.first().title),
-      group.map(note => site.node(note.id, card(note))).join(),
+      group
+        .map(note => (render.scope)(
+          note.id,
+          site.node(note.id, card(note, embed: render.embed)),
+        ))
+        .join(),
     )
   }
   // Titles for search and stack chrome; the page HTML carries everything else.

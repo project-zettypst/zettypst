@@ -69,6 +69,26 @@
   index.views.keys().map(name => (name, neighbors(index, id, name))).to-dict()
 )
 
+/// Find top-level ancestors through an incoming view of a validated DAG.
+/// Exclude the starting node; return roots in graph declaration order.
+#let ancestor-roots(index, id, name) = {
+  let pending = neighbors(index, id, name)
+  let visited = (:)
+  let roots = (:)
+  while pending.len() > 0 {
+    let ancestor = pending.pop()
+    if ancestor in visited { continue }
+    visited.insert(ancestor, true)
+    let parents = neighbors(index, ancestor, name)
+    if parents.len() == 0 {
+      roots.insert(ancestor, true)
+    } else {
+      pending += parents
+    }
+  }
+  index.nodes.keys().filter(root => root in roots)
+}
+
 /// Group the selected relation view without changing original occurrences.
 #let dependency-groups(state, colors) = {
   let ids = state

@@ -1,22 +1,62 @@
 #import "note.typ": reference-color
+#import "transclusion/declaration.typ": include-color
+#import "../../core/vocabulary.typ"
 #import "content.typ": display-value
 #import "evaluation.typ": evaluation-issues
 
+/// Register (color, resolver) pairs using complete vocabulary identities.
+/// A resolver receives (edge, origin) and returns (target, origin).
+#let register-navigation(..entries) = {
+  assert(
+    entries.named().len() == 0,
+    message: "navigation registrations must be positional",
+  )
+  let rules = ()
+  for (color, resolve) in entries.pos() {
+    assert(
+      vocabulary.enum-value(color),
+      message: "navigation color must be a vocabulary member",
+    )
+    assert(
+      type(resolve) == function,
+      message: "navigation resolver must be a function",
+    )
+    assert(
+      not rules.any(rule => rule.color == color),
+      message: "duplicate navigation color",
+    )
+    rules.push((color: color, resolve: resolve))
+  }
+  rules
+}
+
+/// Ordinary references and includes both address the edge's target node.
+#let edge-target(edge, origin) = (target: edge.target, origin: origin)
+
+#let navigation-rules = register-navigation(
+  (reference-color, edge-target),
+  (include-color, edge-target),
+)
+
 // Navigation belongs to the initial graph, independently of policy success.
-#let navigation(project) = {
-  let edges = project
-    .state
-    .graph
-    .edges
-    .pairs()
-    .filter(((id, edge)) => (
-      project.state.values.edges.at(id).relation == reference-color
-    ))
+#let navigation(project, rules: navigation-rules) = {
+  let calls = ()
+  for (id, edge) in project.state.graph.edges {
+    let color = project.state.values.edges.at(id).relation
+    let rule = rules.find(rule => rule.color == color)
+    if rule == none { continue }
+    let call = (rule.resolve)(edge, project.origins.edges.at(id))
+    assert(
+      call.target in project.state.graph.nodes,
+      message: "navigation target must identify a node",
+    )
+    calls.push(call)
+  }
   let incoming = (:)
-  for (edge-id, edge) in edges {
-    let occurrences = incoming.at(edge.target, default: ())
-    occurrences.push(project.origins.edges.at(edge-id))
-    incoming.insert(edge.target, occurrences)
+  for call in calls {
+    let occurrences = incoming.at(call.target, default: ())
+    occurrences.push(call.origin)
+    incoming.insert(call.target, occurrences)
   }
   let nodes = (:)
   for id in project.state.graph.nodes {
@@ -29,8 +69,8 @@
   }
   // A reference inside a heading takes priority over the heading's range.
   (
-    edges.map(((id, edge)) => (
-      nodes.at(edge.target) + (origin: project.origins.edges.at(id))
+    calls.map(call => (
+      nodes.at(call.target) + (origin: call.origin)
     ))
       + project.state.graph.nodes.map(id => nodes.at(id))
   )
@@ -43,8 +83,9 @@
   final,
   project-notes: none,
   hover: none,
+  navigation-rules: navigation-rules,
 ) = {
-  let targets = navigation(project)
+  let targets = navigation(project, rules: navigation-rules)
   for target in targets {
     lsp.announce(lsp.effect-kinds.definition, lsp.definition(
       applies-to: target.origin,

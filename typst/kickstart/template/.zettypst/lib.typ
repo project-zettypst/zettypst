@@ -16,6 +16,7 @@
   ref: kickstart.reference-color.value,
   replaces: <zk.replaces>,
   evolves-from: <zk.evolves-from>,
+  ..("include": kickstart.include-color.value),
 )
 #let registry = vocabulary.registry(lifecycle: lifecycle, relation: colors)
 #let text-field = graph.schema.typed("text", (str,))
@@ -36,6 +37,8 @@
 // Notes supply flat fields; the schema determines value/data ownership.
 #let zk_metadata = kickstart.metadata.with(metadata-schema)
 #let zettel = kickstart.zettel.with(metadata-schema, metadata: zk_metadata)
+#let include-note = kickstart.include-note
+#let note = kickstart.note.with(metadata: zk_metadata)
 #let replaces = kickstart.colored-edge.with(registry, colors.replaces)
 #let evolves-from = kickstart.colored-edge.with(registry, colors.evolves-from)
 
@@ -48,6 +51,10 @@
 #let load = kickstart.load.with(manifest: sources.manifest, read: sources.note)
 
 // Native policy wiring; origins are bound separately for every project.
+#let include-rule = kickstart.transclusion-policy.with(
+  registry,
+  color: colors.at("include"),
+)
 #let lifecycle-rule = kickstart.lifecycle-policy.with(
   metadata-schema,
   field: "lifecycle",
@@ -58,8 +65,13 @@
 )
 #let program(project) = policy.assemble(
   (
+    policy.invocation(
+      "include-validity",
+      include-rule(project.origins, unclassified: project.unclassified),
+      inputs: ("initial",),
+    ),
     policy.invocation("semantic", lifecycle-rule(project.origins), inputs: (
-      "initial",
+      "include-validity",
     )),
   ),
   inputs: ("initial",),

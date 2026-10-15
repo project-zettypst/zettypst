@@ -44,6 +44,18 @@
 #let html-rules(body) = {
   // Frames share the page's type size (Forester's 12pt).
   set text(size: 12pt)
+  // Typst reserves h1 for the document title: native heading level n
+  // exports as HTML level n + 1. Reject rather than silently degrading it.
+  show heading: on-html(it => {
+    let level = it.level + 1
+    assert(
+      level <= 6,
+      message: "HTML heading level "
+        + str(level)
+        + " exceeds h6; flatten the document or its transclusions",
+    )
+    it
+  })
   show math.equation: on-html(it => {
     if not needs-frame(it.body) { return it }
     // Inline frames end at the baseline; descenders overflow, so they align.
@@ -102,19 +114,14 @@
   for (key, value) in counted.zip(saved) { counter(key).update(value) }
 }
 
-// Links retain the identity of the node in which they were rendered.
-#let rendering = state("zettypst.rendering", none)
+// Containers carry node identity; links receive their source explicitly.
+#let node(id, body) = html.elem("section", attrs: ("data-zk-node": id), body)
 
-#let node(id, body) = {
-  rendering.update(id)
-  html.elem("section", attrs: ("data-zk-node": id), body)
-}
-
-#let node-link(target, body) = context html.elem(
+#let node-link(source, target, body) = html.elem(
   "span",
   attrs: (
     class: "zk-link",
-    "data-zk-source": rendering.get(),
+    "data-zk-source": source,
     "data-zk-target": target,
   ),
   body,

@@ -22,8 +22,12 @@ test('copies in views keep their source card', () => {
   assert.deepEqual(links(expand), [['a', 'b'], ['a', 'a']]);
 });
 
-test('graph projections (backlinks) are links from the card showing them', () => {
+test('relationship entries embed the target without changing its link ownership', () => {
   const footer = card('b/index.html').querySelector(':scope > footer');
-  assert.ok(links(footer).every(([source]) => source === 'b'));
-  assert.ok(links(footer).some(([, target]) => target === 'a'));
+  const copies = footer.querySelectorAll('section[data-zk-node="a"]');
+  assert.ok(copies.length > 0);
+  for (const copy of copies) {
+    assert.deepEqual(links(copy), [['a', 'a'], ['a', 'b'], ['a', 'a']]);
+    assert.equal(copy.querySelectorAll('footer').length, 0);
+  }
 });
