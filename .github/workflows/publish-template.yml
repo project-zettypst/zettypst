@@ -68,7 +68,6 @@ jobs:
       - name: Synchronize template and tag release
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#grove-v}"
@@ -85,6 +84,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit --allow-empty -m "chore(release): publish Grove $version from $SOURCE_SHA"
+          git commit --allow-empty -m "chore(release): publish Grove $version from the ZetTypst monorepo"
           git tag "$target_tag"
           git push --atomic origin HEAD:main "refs/tags/$target_tag"
