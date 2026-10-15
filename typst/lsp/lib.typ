@@ -1,5 +1,6 @@
 // Source-backed LSP values and announcements, without application policy.
 #import "../core/eval.typ" as eval
+#import "ast.typ"
 
 /// Publish a constructed value under one of the LSP effect kinds.
 #let announce = eval.announce
@@ -68,10 +69,10 @@
   if type(new-text) != str {
     panic("text-edit new-text must be a string")
   }
-  (origin: eval.inspect(origin), new-text: new-text)
+  (kind: "text.replace", origin: eval.inspect(origin), new-text: new-text)
 }
 
-/// Group source-backed text edits into one host-resolved workspace edit.
+/// Group tagged text and AST edits against one evaluated source snapshot.
 #let workspace-edit(edits: ()) = {
   if type(edits) != array {
     panic("workspace-edit edits must be an array")
@@ -79,6 +80,16 @@
   if edits.any(item => type(item) != dictionary) {
     panic("each workspace edit must be a dictionary")
   }
+  assert(
+    edits.all(item => (
+      item.at("kind", default: none)
+        in (
+          "text.replace",
+          "ast.insert-argument",
+        )
+    )),
+    message: "workspace edits require a supported explicit kind",
+  )
   (edits: edits)
 }
 

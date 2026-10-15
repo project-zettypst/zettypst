@@ -16,7 +16,7 @@ use crate::worker::EvalParams;
 #[cfg(test)]
 mod tests;
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]

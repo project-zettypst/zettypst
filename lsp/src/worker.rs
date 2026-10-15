@@ -102,7 +102,7 @@ impl Worker {
                                     }
                                 }
                             }
-                            evaluate(runtime, &job)
+                            evaluate(runtime, &job, &root)
                         }
                         Err(error) => Err(failure(
                             ErrorCode::RequestFailed,
@@ -157,7 +157,11 @@ impl Worker {
     }
 }
 
-fn evaluate(runtime: &mut Runtime, job: &Job) -> Result<Output, ResponseError> {
+fn evaluate(
+    runtime: &mut Runtime,
+    job: &Job,
+    root: &std::path::Path,
+) -> Result<Output, ResponseError> {
     let inputs = job
         .params
         .inputs
@@ -194,8 +198,10 @@ fn evaluate(runtime: &mut Runtime, job: &Job) -> Result<Output, ResponseError> {
             message: format!("{error:#}"),
             data: Some(json!({"revision": evaluation.revision, "warnings": warnings})),
         })?;
-    let output = serde_json::to_value(value)
+    let mut output = serde_json::to_value(value)
         .map_err(|error| failure(ErrorCode::RequestFailed, error.to_string()))?;
+    crate::ast_edits::resolve(&mut output, &evaluation.sources, root)
+        .map_err(|error| failure(ErrorCode::RequestFailed, format!("invalid edit: {error:#}")))?;
     Ok(Output {
         revision: evaluation.revision,
         output,
@@ -240,19 +246,19 @@ mod tests {
             sources: BTreeMap::from([("main.typ".into(), "#panic(\"unsaved\")".into())]),
             index: false,
         };
-        let output = evaluate(&mut runtime, &job).unwrap();
+        let output = evaluate(&mut runtime, &job, &root.path().canonicalize()?).unwrap();
         assert_eq!(output.output["test"][0], "disk");
         assert_eq!(output.reads.len(), 2);
         job.params
             .sources
             .insert("data.txt".into(), Some("explicit".into()));
-        let output = evaluate(&mut runtime, &job).unwrap();
+        let output = evaluate(&mut runtime, &job, &root.path().canonicalize()?).unwrap();
         assert_eq!(output.output["test"][0], "explicit");
         assert_eq!(output.reads.len(), 1);
         job.params.sources.insert("data.txt".into(), None);
-        assert!(evaluate(&mut runtime, &job).is_err());
+        assert!(evaluate(&mut runtime, &job, &root.path().canonicalize()?).is_err());
         job.params.detached = false;
-        assert!(evaluate(&mut runtime, &job).is_err());
+        assert!(evaluate(&mut runtime, &job, &root.path().canonicalize()?).is_err());
         Ok(())
     }
 }

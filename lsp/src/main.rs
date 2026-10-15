@@ -1,3 +1,4 @@
+mod ast_edits;
 mod host;
 mod progress;
 mod server;

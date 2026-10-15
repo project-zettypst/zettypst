@@ -339,8 +339,17 @@ struct EditValue {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
+enum TextEditKind {
+    #[serde(rename = "text.replace")]
+    Replace,
+}
+
+// AST edits have already been lowered against the worker's source snapshot.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct TextEditValue {
+    #[serde(rename = "kind")]
+    _kind: TextEditKind,
     origin: Origin,
     new_text: String,
 }
@@ -361,7 +370,9 @@ impl EditValue {
                 let mut ranges: Vec<_> = edits.iter().map(|edit| edit.range).collect();
                 ranges.sort_by_key(|range| (range.start, range.end));
                 ensure!(
-                    ranges.windows(2).all(|pair| pair[0].end <= pair[1].start),
+                    ranges.windows(2).all(|pair| {
+                        pair[0].end <= pair[1].start && pair[0].start != pair[1].start
+                    }),
                     "workspace edit contains overlapping ranges"
                 );
                 Ok(TextDocumentEdit {
