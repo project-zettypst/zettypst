@@ -1,4 +1,5 @@
-/* Card content: Typst's HTML over Forester's vendored stylesheet.
+/* Card content: Typst's HTML over Forester's vendored stylesheet. Trees, their
+   titles and backmatter are laid out by tree.css.
 
    Vertical rhythm follows a paper page. Display math, diagrams and list
    boundaries sit in the flow like lines of text: each keeps half the leading
@@ -11,13 +12,7 @@
   --zk-math-size: 1.08;                             /* NewCM beside Inria Sans */
 }
 
-/* ---- Tree markup --------------------------------------------------------- */
-
-
-[data-zk-node] > details > summary { cursor: pointer; }
-[data-zk-node] > details > summary > header { display: block; margin-bottom: 0.5em; }
-[data-zk-node] > details > summary > header > h1 { font-size: 1.5em; display: inline; }
-[data-zk-node] > footer { margin-top: 2.5em; }
+/* ---- Card chrome ---------------------------------------------------------- */
 
 .slug a { color: var(--zk-muted); font-weight: 300; }
 .slug a:hover { background: var(--zk-hover); }
@@ -33,20 +28,18 @@
 [data-zk-node] a[href^="http"] { border-bottom-style: solid; }
 .zk-unpublished { color: var(--zk-muted); font-style: italic; }
 
-/* Collapsed backmatter trees expand in place, Forester style. */
-details[data-zk-expand] > summary h1::before {
-  content: "▸";
-  display: inline-block;
-  width: 1em;
-  color: #aaa;
-  transition: transform 0.15s;
+/* ---- Section headings inside mainmatter ---------------------------------- */
+
+/* Transclusion shifts headings by the depth of their placement, so a level
+   says where a section sits, not how loud it is. Below h3 every heading is a
+   bold line at text size, never smaller than the text it heads. */
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) :is(h2, h3, h4, h5, h6):not(summary *) {
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
 }
-details[data-zk-expand][open] > summary h1::before { transform: rotate(90deg); }
-details[data-zk-expand][data-loaded="loading"] > summary h1::before { opacity: 0.4; }
-details[data-zk-expand] > .mainmatter { padding: 0.2em 0 0.4em 1em; }
-footer .block { margin-left: -5px; }
-
-
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) h2:not(summary *) { font-size: 1.3em; }
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) h3:not(summary *) { font-size: 1.15em; }
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) :is(h4, h5, h6):not(summary *) { font-size: 1em; }
 
 code, pre { hyphens: none; }
 

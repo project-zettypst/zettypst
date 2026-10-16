@@ -130,6 +130,17 @@ export function initPreview() {
   hoverable.addEventListener('change', () => { if (!hoverable.matches) end(); });
 }
 
+// A tree the reader has opened or closed keeps its disclosure triangle. Only
+// activating a summary counts: inserting an open tree also fires `toggle`.
+export function initDisclosure() {
+  document.addEventListener('click', event => {
+    const summary = event.target instanceof Element ? event.target.closest('summary') : null;
+    if (summary?.parentElement instanceof HTMLDetailsElement && !event.defaultPrevented) {
+      summary.parentElement.toggleAttribute('data-zk-toggled', true);
+    }
+  });
+}
+
 // A collapsed tree names its card in `data-zk-expand`.
 export function initExpansion() {
   document.addEventListener('toggle', async event => {

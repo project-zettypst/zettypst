@@ -1,0 +1,102 @@
+/* Forester's tree layout (tree.xsl over the base theme), restated for the
+   markup Typst emits. The vendored stylesheet keys trees on `h1`, because
+   Forester titles every tree with one; Typst titles a tree with the heading
+   of its level, so here a tree is recognised by structure alone:
+
+     details > summary > header > hN      a tree and its title, any level
+     section[data-zk-node]                a card: identity, never layout
+     section.block                        a nested tree's box (hover, padding)
+     [data-zk-main], [data-zk-main-copy]  mainmatter, canonical or transcluded
+     section[data-zk-node] > footer       backmatter, a list of collapsed trees
+
+   A tree has exactly two looks, after Forester: the page's own tree, whose
+   header is a block with a large title, and every tree nested in it (a
+   transclusion, a backmatter group or entry), whose title runs inline at the
+   size of a heading line. Heading levels stay semantic and never size a tree. */
+
+:root {
+  --zk-tree-title: 13pt;                             /* Forester: details h1 */
+  --zk-root-title: 1.5em;                            /* Forester: article > section h1 */
+}
+
+/* ---- Every tree ---------------------------------------------------------- */
+
+details > summary { cursor: pointer; }
+details > summary > header { display: inline; }
+details > summary > header > :is(h1, h2, h3, h4, h5, h6) {
+  display: inline;
+  margin: 0;
+  font-size: var(--zk-tree-title);
+  line-height: 1.2;
+}
+
+/* A card is only an identity: it adds no box between a tree and its parent. */
+[data-zk-node] { margin: 0; padding: 0; }
+/* Typst anchors each card with a paragraph holding only an empty span; its
+   ID may carry a namespace once the card is copied into another pane. */
+[data-zk-node] > p:has(> span[id]:only-child:empty) { margin: 0; }
+
+/* Mainmatter ends where its last block ends; the tree owns the gap after it.
+   Without this, margins of nested trees would add up at every level. */
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) > :last-child { margin-bottom: 0; }
+:is([data-zk-main], [data-zk-main-copy], .mainmatter) > :first-child { margin-top: 0; }
+
+/* ---- The page's tree ---------------------------------------------------- */
+
+:is(article, .zk-preview) > [data-zk-node] > details > summary > header {
+  display: block;
+  margin-bottom: 0.5em;
+}
+article > [data-zk-node] > details > summary > header > :is(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--zk-root-title);
+}
+.zk-preview > [data-zk-node] > details > summary > header > :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 1.2em;
+}
+:is(article, .zk-preview) > [data-zk-node] > details > summary { cursor: auto; }
+
+/* ---- Nested trees ------------------------------------------------------- */
+
+/* Forester's section.block > details margins, with a closed tree spaced like
+   a line rather than a paragraph. */
+section.block > details:not([open]) { margin-bottom: 0.25em; }
+section.block > details[open] > summary { display: block; margin-bottom: 0.25em; }
+
+/* A tree that ends its parent's flow leaves the gap after it to the parent. */
+:not([data-zk-node]) > section.block:last-child > details,
+[data-zk-node]:last-child > section.block > details { margin-bottom: 0; }
+
+/* Body copied into a nested tree sits under its title, Forester style. */
+section.block > details > :is([data-zk-main-copy], .mainmatter) { margin-top: 0.25em; }
+
+/* Collapsed trees open in place; a triangle shows which ones can. A tree keeps
+   it once opened (the client marks toggled trees), and backmatter entries
+   always show it, so a list reads as one kind of thing. The triangle hangs in
+   the margin, so titles and metadata share one edge. */
+:is(footer > section.block > details > [data-zk-node] > section.block, section.block:has(> details:is(:not([open]), [data-zk-toggled]))) {
+  padding-left: calc(5px + 1em);
+}
+:is(footer > section.block > details > [data-zk-node] > section.block, section.block:has(> details:is(:not([open]), [data-zk-toggled])))
+  > details > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  margin-left: -1em;
+  color: #aaa;
+  font-weight: normal;
+  transition: transform 0.15s;
+}
+section.block > details[open] > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
+  transform: rotate(90deg);
+}
+details[data-zk-expand][data-loaded="loading"] > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
+  opacity: 0.4;
+}
+
+/* ---- Backmatter --------------------------------------------------------- */
+
+[data-zk-node] > footer { margin-top: 2.5em; }
+[data-zk-node] > footer:empty { display: none; }
+/* Groups line up with the page's text; their entries keep Forester's indent. */
+[data-zk-node] > footer > section.block { margin-left: -5px; }
+[data-zk-node] > footer > section.block > details > summary { margin-bottom: 0.4em; }
