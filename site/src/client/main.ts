@@ -1,11 +1,10 @@
 import { initPrefetch } from './cards';
 import { initPalette } from './palette';
-import { initDisclosure, initExpansion, initPreview } from './reading';
+import { initExpansion, initPreview } from './reading';
 import { initStack } from './stack';
 
 initPrefetch(document.querySelector<HTMLElement>('.zk-stack')!);
 initStack();
-initDisclosure();
 initExpansion();
 initPreview();
 initPalette();

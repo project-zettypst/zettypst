@@ -69,29 +69,8 @@ section.block > details[open] > summary { display: block; margin-bottom: 0.25em;
 /* Body copied into a nested tree sits under its title, Forester style. */
 section.block > details > :is([data-zk-main-copy], .mainmatter) { margin-top: 0.25em; }
 
-/* Collapsed trees open in place; a triangle shows which ones can. A tree keeps
-   it once opened (the client marks toggled trees), and backmatter entries
-   always show it, so a list reads as one kind of thing. The triangle hangs in
-   the margin, so titles and metadata share one edge. */
-:is(footer > section.block > details > [data-zk-node] > section.block, section.block:has(> details:is(:not([open]), [data-zk-toggled]))) {
-  padding-left: calc(5px + 1em);
-}
-:is(footer > section.block > details > [data-zk-node] > section.block, section.block:has(> details:is(:not([open]), [data-zk-toggled])))
-  > details > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
-  content: "▸";
-  display: inline-block;
-  width: 1em;
-  margin-left: -1em;
-  color: #aaa;
-  font-weight: normal;
-  transition: transform 0.15s;
-}
-section.block > details[open] > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
-  transform: rotate(90deg);
-}
-details[data-zk-expand][data-loaded="loading"] > summary > header > :is(h1, h2, h3, h4, h5, h6)::before {
-  opacity: 0.4;
-}
+/* As in Forester, a tree's disclosure has no marker: its title is the control,
+   and the block's hover tint is the only cue. */
 
 /* ---- Backmatter --------------------------------------------------------- */
 
