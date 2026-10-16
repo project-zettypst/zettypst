@@ -1,6 +1,6 @@
 // Forester tree markup (tree.xsl): details > summary > header, with backmatter
-// in a footer. The note's root heading becomes the card's summary, so its
-// label remains the card's anchor. Links are ordinary refs to note labels.
+// in a footer. Node data supplies the summary and its canonical label;
+// mainmatter is rendered once and exposed to output consumers.
 
 #import "../../site/lib.typ" as site
 #import site: html-rules, tree
@@ -124,8 +124,8 @@
 /// Each returns `auto` (the card's title and body, marked in place), `none`
 /// (no such view) or content, e.g. `note => [#note.metadata.abstract]`.
 /// Content is rendered like the card, kept inert in a `<template>`, and does
-/// not advance counters. `note.main` (the body without its root heading) can
-/// be repeated safely; other labels it holds must not be referenced twice.
+/// not advance counters. Custom templates must not duplicate referenced Typst
+/// labels. Transclusion requests instead reuse the canonical HTML mainmatter.
 #let card(note, embed: none, views: (:)) = {
   show: html-rules
   let shown = (
@@ -135,12 +135,8 @@
     .map(((name, view)) => (name, view(note)))
     .to-dict()
   html.elem("details", attrs: (open: "") + site.view-attrs(shown), {
-    show heading.where(level: 1): it => {
-      if it.at("label", default: none) == label(note.id) {
-        html.summary(frontmatter(note, it.body))
-      } else { it }
-    }
-    note.body
+    [#html.summary(frontmatter(note, note.title))#label(note.id)]
+    html.elem("div", attrs: ("data-zk-main": ""), note.main)
   })
   site.view-templates(shown)
   html.footer({

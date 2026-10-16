@@ -1,6 +1,7 @@
 #import "content.typ": display-value
 #import "card.typ": card, embedded, frontmatter
 #import "transclusion/render.typ": renderer
+#import "transclusion/html.typ" as html-consumer
 #import "transclusion/declaration.typ": include-color
 #import "relations.typ": ancestor-roots, neighbor-index
 
@@ -14,7 +15,17 @@
   route: none,
   card: none,
   view: embedded,
+  consume: html-consumer.consume,
+  documents: auto,
+  render-unclassified: (source, reference) => reference,
 ) = {
+  assert(
+    documents == auto
+      or (
+        type(documents) == array and documents.all(path => type(path) == str)
+      ),
+    message: "documents must be auto or an array of publication routes",
+  )
   let state = final-observation(result.program, result.execution)
   assert(state != none, message: "semantic evaluation failed")
   // Context is rooted in the complete include graph, before route filtering.
@@ -54,31 +65,42 @@
     )
     view(note, instance)
   }
-  // Reference ownership is an explicit input, not a layout-time state.
-  let render-reference(source, reference) = {
+  // Stable canonical anchors also work when the target is compiled in another batch.
+  let anchor(id) = {
+    let hex = ""
+    for byte in bytes(id) {
+      hex += (if byte < 16 { "0" } else { "" }) + str(byte, base: 16)
+    }
+    "zk-node-" + hex
+  }
+  let destination(path, target) = {
+    let from = path.split("/").slice(0, -1)
+    let to = target.route.split("/")
+    while from.len() > 0 and to.len() > 0 and from.first() == to.first() {
+      from = from.slice(1)
+      to = to.slice(1)
+    }
+    (from.map(_ => "..") + to).join("/") + "#" + anchor(target.id)
+  }
+  // Document routing and lexical reference ownership are explicit inputs.
+  let render-reference(path, source, reference) = {
     let target = notes.at(str(reference.target), default: none)
-    if target == none { return reference }
+    if target == none { return render-unclassified(source, reference) }
     let body = if reference.supplement in (auto, none, []) {
       target.title
     } else {
       reference.supplement
     }
     if target.route == none { return site.unpublished(body) }
-    site.node-link(source, target.id, link(reference.target, body))
+    site.node-link(source, target.id, link(destination(path, target), body))
   }
-  let render = renderer(
-    notes,
-    bodies,
-    view: published-view,
-    render-reference: render-reference,
-  )
   let published = notes.values().filter(it => it.route != none)
+  let selected = documents
   let documents = (:)
   for note in published {
-    let content = (render.document-body)(note.id)
+    if selected != auto and note.route not in selected { continue }
     let full = (
       note
-        + content
         + (
           "context": ancestor-roots(includes, note.id, "parents").map(
             id => notes.at(id),
@@ -94,15 +116,33 @@
   }
 
   for (path, group) in documents {
+    let render = renderer(
+      notes,
+      bodies,
+      view: published-view,
+      consume: consume,
+      render-reference: render-reference.with(path),
+    )
     document(
       path,
       title: display-value(group.first().title),
-      group
-        .map(note => (render.scope)(
-          note.id,
-          site.node(note.id, card(note, embed: render.embed)),
-        ))
-        .join(),
+      {
+        // Each HTML document has its own numbering baseline. This also prevents
+        // copied backmatter in earlier bundle documents from delaying convergence.
+        for key in site.counted { counter(key).update(0) }
+        group
+          .map(note => (render.scope)(
+            note.id,
+            site.node(note.id, {
+              html.span(id: anchor(note.id))
+              card(
+                note + (render.document-body)(note.id),
+                embed: render.embed.with(source: note.id),
+              )
+            }),
+          ))
+          .join()
+      },
     )
   }
   // Titles for search and stack chrome; the page HTML carries everything else.

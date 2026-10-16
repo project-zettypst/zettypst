@@ -40,6 +40,7 @@
       level: placement,
       title: marker.title,
       heading-renderer: marker.heading-renderer,
+      relative: source-level != none or marker.level == auto,
     )
     (child, if source-level == none { level } else { placement })
   } else if body.func() == heading {
@@ -131,15 +132,27 @@
 /// The view owns instance anchors, never knowledge labels or relationship lists.
 /// Returns embed, document-body, and scope. All node content carries a lexical
 /// reference renderer; copying it does not change its source identity.
+/// The default consumer preserves direct Typst expansion. Other consumers can
+/// emit a declaration without ever evaluating context.expand().
+#let expanded(request, env) = (env.view)(
+  env.note,
+  request
+    + (
+      body: (env.expand)(),
+    ),
+)
+
 #let renderer(
   nodes,
   bodies,
   view: none,
+  consume: expanded,
   render-policy: default-render-policy,
   render-reference: (source, reference) => reference,
 ) = {
   assert(type(nodes) == dictionary and type(bodies) == dictionary)
   assert(type(view) == function, message: "renderer requires an embedding view")
+  assert(type(consume) == function, message: "renderer requires a consumer")
   assert(
     type(render-policy) == function,
     message: "renderer requires a render policy",
@@ -187,6 +200,8 @@
     open: true,
     heading-renderer: none,
     trail: (),
+    source: none,
+    relative: true,
   ) = {
     assert(
       target in nodes and target in bodies,
@@ -215,19 +230,27 @@
     }
     let root-level = project-heading(source-root)
     let main = without-root(bodies.at(target), target)
-    let body = prepare(
+    let request = (
+      source: source,
+      target: target,
+      title: chosen,
+      level: root-level,
+      open: open,
+      relative: relative,
+      heading-renderer: heading-renderer,
+    )
+    let expand(transform: body => body) = prepare(
       target,
-      main,
-      embed.with(trail: trail + (target,)),
+      transform(main),
+      embed.with(trail: trail + (target,), source: target),
       level: root-level,
       project-heading: project-heading,
     )
-    scope(target, view(note, (
-      title: chosen,
-      body: body,
-      level: root-level,
-      open: open,
-      heading-renderer: heading-renderer,
+    scope(target, consume(request, (
+      note: note,
+      body: main,
+      view: view,
+      expand: expand,
     )))
   }
 
@@ -235,7 +258,7 @@
   // Prepare main independently so copied views retain their source scope.
   let document-body(target) = {
     let source = bodies.at(target)
-    let nested = embed.with(trail: (target,))
+    let nested = embed.with(trail: (target,), source: target)
     let source-root = heading-level(nodes.at(target).origin)
     let project-heading(level) = level - source-root + 1
     (

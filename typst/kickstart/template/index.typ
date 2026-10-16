@@ -1,4 +1,6 @@
-#import ".zettypst/lib.typ": evaluate, final-observation, load, publish
+#import ".zettypst/lib.typ": (
+  evaluate, export-pdf, final-observation, load, publish,
+)
 
 #let project = load()
 #assert.eq(project.issues, ())
@@ -18,6 +20,4 @@
   }
 }
 
-#for note in project.notes {
-  note.body
-}
+#export-pdf(project, result)

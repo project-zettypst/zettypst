@@ -120,9 +120,21 @@
   editor-output: announce-editor,
   project-output: announce-project,
 )
+#let export-pdf = kickstart.export-pdf.with(
+  final-observation: final-observation,
+  project-notes: project-notes,
+  render-reference: (source, it) => {
+    if it.element != none and it.element.func() == heading {
+      link(it.target)[[#it.element.body]]
+    } else { it }
+  },
+)
 #let export-html = kickstart.export-html.with(
   final-observation: final-observation,
   project-notes: project-notes,
   route: route,
   card: kickstart.site.card,
+  documents: if "zettypst.documents" in sys.inputs {
+    json(bytes(sys.inputs.at("zettypst.documents")))
+  } else { auto },
 )

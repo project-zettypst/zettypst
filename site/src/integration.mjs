@@ -15,6 +15,7 @@ import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTypesetter, fontDirectory, licenseFile } from './math/typeset.mjs';
+import { materializeDirectory } from './transclusion.mjs';
 
 // URL namespace of the files this integration owns; Typst owns every other path.
 export const OWN = '_zettypst';
@@ -57,9 +58,14 @@ async function write(path, data) {
  * @param {string} [options.root] Typst project root; defaults to Astro's root.
  * @param {string} [options.typst] Typst executable.
  * @param {Record<string, string>} [options.inputs] Extra `sys.inputs`.
+ * @param {number} [options.batchSize] Compile this many routes at a time. The entry
+ * must honor the `zettypst.documents` input (supported by the kickstart template).
  */
 export default function zettypst(options = {}) {
-  const { entry = 'site.typ', typst = process.env.TYPST || 'typst', inputs = {} } = options;
+  const { entry = 'site.typ', typst = process.env.TYPST || 'typst', inputs = {}, batchSize } = options;
+  if (batchSize !== undefined && (!Number.isInteger(batchSize) || batchSize < 1)) {
+    throw new Error('batchSize must be a positive integer');
+  }
   const math = createTypesetter({ fontURL: MATH_FONTS });
   let root, pages, owned;
   // Every file the last compilation read, by real path: notes, manifests,
@@ -88,14 +94,72 @@ export default function zettypst(options = {}) {
       resolve(root, entry), next,
     ];
     try {
-      const { status, stderr } = await run(typst, args, root);
-      // A failed compilation still names what it read; keep watching the rest.
-      const read = await readDependencies(deps);
-      if (read) dependencies = status === 0 ? read : new Set([...dependencies, ...read]);
-      if (status !== 0) throw new Error('Typst compilation failed');
-      if (strict && /warning:.*(?:ignored|unsupported)/i.test(stderr)) {
-        throw new Error('Typst dropped content in HTML export');
+      const allReads = new Set();
+      const fingerprints = new Map();
+      const compile = async (target, routes) => {
+        const invocation = [...args.slice(0, -1),
+          ...(routes === undefined ? [] : ['--input', 'zettypst.documents=' + JSON.stringify(routes)]),
+          target];
+        const { status, stderr } = await run(typst, invocation, root);
+        // Keep reads from every batch, including failed evaluations.
+        const read = await readDependencies(deps);
+        if (read) for (const file of read) {
+          allReads.add(file);
+          if (batchSize !== undefined) {
+            const stat = statSync(file);
+            const fingerprint = stat.mtimeMs + ':' + stat.size;
+            if (fingerprints.has(file) && fingerprints.get(file) !== fingerprint) {
+              throw new Error('Source changed during batched build: ' + file);
+            }
+            fingerprints.set(file, fingerprint);
+          }
+        }
+        dependencies = new Set([...dependencies, ...allReads]);
+        if (status !== 0) throw new Error('Typst compilation failed');
+        if (strict && /warning:.*(?:ignored|unsupported)|did not converge/i.test(stderr)) {
+          throw new Error('Typst dropped content in HTML export');
+        }
+      };
+      await compile(next, batchSize === undefined ? undefined : []);
+      if (batchSize !== undefined) {
+        const index = JSON.parse(await readFile(join(next, 'zettypst.json'), 'utf8'));
+        const routes = [...new Set(index.map(note => note.route))];
+        // The index pass must not have rendered node pages: fail on an old entry
+        // rather than silently recompiling the entire graph for every batch.
+        for (const route of routes) {
+          if (existsSync(join(next, route))) throw new Error('Entry does not honor zettypst.documents');
+        }
+        const part = pages + '.batch';
+        try {
+          for (let start = 0; start < routes.length; start += batchSize) {
+            const batch = routes.slice(start, start + batchSize);
+            await rm(part, { recursive: true, force: true });
+            await mkdir(part, { recursive: true });
+            await compile(part, batch);
+            const currentIndex = JSON.parse(await readFile(join(part, 'zettypst.json'), 'utf8'));
+            if (JSON.stringify(currentIndex) !== JSON.stringify(index)) {
+              throw new Error('Publication index changed during batched build');
+            }
+            for (const route of batch) {
+              if (!existsSync(join(part, route))) throw new Error('Missing batch document: ' + route);
+            }
+            for (const file of await files(part)) {
+              const target = join(next, file);
+              if (existsSync(target)) {
+                if (!(await readFile(target)).equals(await readFile(join(part, file)))) {
+                  throw new Error('Conflicting batch artifact: ' + file);
+                }
+              } else {
+                await mkdir(resolve(target, '..'), { recursive: true });
+                await cp(join(part, file), target);
+              }
+            }
+          }
+        } finally {
+          await rm(part, { recursive: true, force: true });
+        }
       }
+      dependencies = allReads;
       if ((await files(next)).some(file => file.split(sep)[0] === OWN)) {
         throw new Error(`Routes must not use the reserved ${OWN}/ namespace`);
       }
@@ -104,6 +168,7 @@ export default function zettypst(options = {}) {
         const path = join(next, file);
         await writeFile(path, await math.typeset(await readFile(path, 'utf8')));
       }
+      await materializeDirectory(next);
     } catch (error) {
       await rm(next, { recursive: true, force: true });
       if (strict) throw error;

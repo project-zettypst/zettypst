@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'node-html-parser';
+import { canonicalMains, materialize } from '../src/transclusion.mjs';
 
 const rules = fileURLToPath(new URL('../../typst/site/lib.typ', import.meta.url));
 
@@ -23,7 +24,7 @@ export function typstHTML(source) {
     writeFileSync(main, source);
     execFileSync(process.env.TYPST || 'typst', [
       'compile', '--features', 'html', '--format', 'html', '--root', '/', main, join(dir, 'out.html'),
-    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    ], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 10000 });
     return parse(readFileSync(join(dir, 'out.html'), 'utf8'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -51,7 +52,7 @@ export function typstBundle(fixture, entry = 'site.typ', sources = {}) {
     }
     const compiled = spawnSync(process.env.TYPST || 'typst', [
       'compile', '--package-path', packages, '--features', 'bundle,html', '--format', 'bundle', '--root', root, join(root, entry), out,
-    ], { encoding: 'utf8' });
+    ], { encoding: 'utf8', timeout: 10000 });
     if (compiled.error) throw compiled.error;
     if (compiled.status !== 0 || /did not converge/i.test(compiled.stderr)) {
       throw new Error(`Typst bundle failed (status ${compiled.status}):\n${compiled.stderr}`);
@@ -59,6 +60,12 @@ export function typstBundle(fixture, entry = 'site.typ', sources = {}) {
     const pages = {};
     for (const file of readdirSync(out, { recursive: true })) {
       if (file.endsWith('.html')) pages[file] = parse(readFileSync(join(out, file), 'utf8'));
+    }
+    const index = JSON.parse(readFileSync(join(out, 'zettypst.json'), 'utf8'));
+    // Partial batch tests deliberately have only some canonical targets.
+    if (index.every(entry => pages[entry.route])) {
+      const mains = canonicalMains(new Map(Object.entries(pages)), index);
+      for (const [path, page] of Object.entries(pages)) materialize(page, path, mains);
     }
     return pages;
   } finally {

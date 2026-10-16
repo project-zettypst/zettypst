@@ -21,5 +21,10 @@
 #import "src/export.typ": announce-project, publish
 #import "src/html.typ" as site
 #import "src/html.typ": export-html
+#import "src/pdf.typ": export-pdf
+#import "src/transclusion/render.typ": (
+  expanded as expand-transclusion, renderer as transclusion-renderer,
+)
+#import "src/transclusion/pdf.typ" as pdf
 #import "src/host.typ" as host
 #import "src/capture/lib.typ" as capture
