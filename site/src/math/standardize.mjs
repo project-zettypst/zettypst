@@ -128,8 +128,22 @@ export const multilineEquations = {
   },
 };
 
+/** @type {Rule} */
+export const literalCode = {
+  name: 'literal-code',
+  typst: 'Raw text (including a displayed function value) is HTML <code> inside '
+    + 'MathML; MathJax requires a MathML text node instead.',
+  apply(math) {
+    for (const code of math.querySelectorAll('code')) {
+      const text = code.text.replace(/[&<>]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+      code.replaceWith('<mtext mathvariant="monospace">' + text + '</mtext>');
+    }
+  },
+};
+
 /** In order: operator names must become <mi> before operators are respaced. */
 export const rules = [
+  literalCode,
   operatorNames,
   operatorSpacing,
   breakAfterOperators,

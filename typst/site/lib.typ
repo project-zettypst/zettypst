@@ -16,6 +16,7 @@
 #let paged-only = (
   math.cancel,
   math.underline,
+  underline,
   box,
   block,
   stack,
@@ -58,6 +59,8 @@
   })
   show math.equation: on-html(it => {
     if not needs-frame(it.body) { return it }
+    // Text decoration needs text layout even when embedded in an equation.
+    show underline: line => box(line)
     // Inline frames end at the baseline; descenders overflow, so they align.
     if it.block { html.div(class: "zk-frame", html.frame(it)) } else {
       box(html.frame(it))

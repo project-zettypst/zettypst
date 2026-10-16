@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
   alignedColumns, breakAfterOperators, multilineEquations, operatorNames,
-  operatorSpacing, rules, standardize, stretchyOverline, tableAlignment,
+  operatorSpacing, rules, standardize, stretchyOverline, tableAlignment, literalCode,
 } from '../src/math/standardize.mjs';
 import { createTypesetter } from '../src/math/typeset.mjs';
-import { only, typstMath } from './typst.mjs';
+import { only, sources, typstHTML, typstMath } from './typst.mjs';
 
 const [operatorName, integral, overline, macron, aligned, cases, left, right, lines, plain] = typstMath(`
 $a = op("Hom") b$
@@ -25,6 +25,34 @@ $ a \\ b $
 $a + b$
 `);
 const apply = (rule, mathml) => only(standardize(mathml, [rule]));
+
+describe(literalCode.name, () => {
+  const [literal] = typstMath('$ #raw("x < y & z") $');
+  test('precondition: raw math text is an HTML code element', () => {
+    assert.equal(only(literal).querySelector('code').text, 'x < y & z');
+  });
+  test('result: literal text remains escaped monospace MathML', async () => {
+    const math = apply(literalCode, literal);
+    assert.equal(math.querySelector('code'), null);
+    const text = math.querySelector('mtext');
+    assert.equal(text.text, 'x < y & z');
+    assert.equal(text.getAttribute('mathvariant'), 'monospace');
+    const typesetter = createTypesetter({ fontURL: 'fonts' });
+    const output = await typesetter.typeset('<html><body>' + literal + '</body></html>');
+    assert.match(output, /mjx-container/);
+    assert.doesNotMatch(output, /mjx-merror/);
+  });
+});
+
+test('text underline inside math is framed, not dropped as an HTML span', () => {
+  const source = '$14#underline[6]$';
+  const native = typstHTML(source);
+  assert.equal(native.querySelector('math span')?.text, '6');
+  const framed = typstHTML(`#import "${sources.site}": html-rules\n#show: html-rules\n${source}`);
+  assert.equal(framed.querySelector('math'), null);
+  assert.ok(framed.querySelector('svg'));
+  assert.ok(framed.querySelector('svg [stroke]'), 'underline stroke remains in the SVG');
+});
 
 describe(operatorNames.name, () => {
   test('precondition: op() is a zero-spaced prefix <mo>', () => {
