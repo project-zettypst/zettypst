@@ -133,13 +133,14 @@
         group
           .map(note => (render.scope)(
             note.id,
-            site.node(note.id, {
-              html.span(id: anchor(note.id))
+            site.node(
+              note.id,
+              anchor: anchor(note.id),
               card(
                 note + (render.document-body)(note.id),
                 embed: render.embed.with(source: note.id),
-              )
-            }),
+              ),
+            ),
           ))
           .join()
       },

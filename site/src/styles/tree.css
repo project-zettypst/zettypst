@@ -32,9 +32,6 @@ details > summary > header > :is(h1, h2, h3, h4, h5, h6) {
 
 /* A card is only an identity: it adds no box between a tree and its parent. */
 [data-zk-node] { margin: 0; padding: 0; }
-/* Typst anchors each card with a paragraph holding only an empty span; its
-   ID may carry a namespace once the card is copied into another pane. */
-[data-zk-node] > p:has(> span[id]:only-child:empty) { margin: 0; }
 
 /* Mainmatter ends where its last block ends; the tree owns the gap after it.
    Without this, margins of nested trees would add up at every level. */

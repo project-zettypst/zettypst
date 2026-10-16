@@ -118,7 +118,12 @@
 }
 
 // Containers carry node identity; links receive their source explicitly.
-#let node(id, body) = html.elem("section", attrs: ("data-zk-node": id), body)
+// A canonical card also carries its stable link target as the section's ID.
+#let node(id, body, anchor: none) = html.elem(
+  "section",
+  attrs: ("data-zk-node": id) + if anchor == none { (:) } else { (id: anchor) },
+  body,
+)
 
 #let node-link(source, target, body) = html.elem(
   "span",
