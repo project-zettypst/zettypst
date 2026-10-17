@@ -6,7 +6,7 @@
 // footnotes. IDs leave the document with their footnote: links to them land
 // on the footnote's first reference, the target of its own backlink.
 import { parse } from 'node-html-parser';
-import { relocate } from './transclusion.mjs';
+import { relocate } from './fragments.mjs';
 
 const isCard = node => node?.tagName === 'SECTION' && node.getAttribute('data-zk-node') != null;
 const local = el => {

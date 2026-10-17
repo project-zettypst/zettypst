@@ -4,7 +4,7 @@
 // site moves each slot's HTML into its value as {"$html": "..."} and removes
 // the templates, so a published card holds its metadata exactly once.
 import { parse } from 'node-html-parser';
-import { relocate } from './transclusion.mjs';
+import { relocate } from './fragments.mjs';
 
 const isCard = node => node?.getAttribute?.('data-zk-node') != null && node.tagName === 'SECTION';
 // "<" never appears literally, so the JSON cannot close its script element.

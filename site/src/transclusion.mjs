@@ -2,63 +2,8 @@
 // It runs after canonical math typesetting, so display copies do not re-typeset.
 import { parse } from 'node-html-parser';
 import { readFile, writeFile } from 'node:fs/promises';
-import { resolve, sep, posix } from 'node:path';
-
-const origin = 'https://zettypst.invalid/';
-const idLists = new Set(['for', 'headers', 'aria-labelledby', 'aria-describedby', 'aria-controls', 'aria-owns']);
-const relative = (url, destination) => {
-  if (url.origin !== new URL(origin).origin) return url.href;
-  const path = posix.relative(posix.dirname(destination), decodeURI(url.pathname.slice(1)));
-  return (path || posix.basename(destination)) + url.search + url.hash;
-};
-
-export function relocate(root, source, destination, prefix) {
-  // Typst repeats glyph definitions across independent inline SVG frames.
-  // Namespace each island first; article-level IDs still must be unique.
-  const identities = root.querySelectorAll('[id]').map(el => el.id);
-  const occupied = new Set(identities);
-  const counts = new Map();
-  for (const id of identities) counts.set(id, (counts.get(id) ?? 0) + 1);
-  const aliases = new Map();
-  let serial = 0;
-  for (const svg of root.querySelectorAll('svg').filter(el => {
-    const parent = el.parentNode.closest?.('svg');
-    return !parent || parent === root;
-  })) {
-    let island;
-    do { island = prefix + 'svg-' + (++serial) + '-'; }
-    while ([...occupied].some(id => id.startsWith(island)));
-    for (const [before, after] of relocate(svg, source, source, island)) {
-      if (counts.get(before) === 1) aliases.set(before, after);
-    }
-  }
-  const elements = root.querySelectorAll('*');
-  const ids = new Map();
-  for (const el of elements) {
-    const id = el.getAttribute('id');
-    if (!id) continue;
-    if (ids.has(id)) throw new Error('Duplicate canonical fragment ID: ' + id);
-    ids.set(id, prefix + id);
-  }
-  // Unique SVG targets may also be referenced by surrounding text or ARIA.
-  for (const [before, after] of aliases) ids.set(before, ids.get(after));
-  for (const el of elements) {
-    for (const [name, value] of Object.entries(el.attributes)) {
-      if (name === 'id') el.setAttribute(name, ids.get(value));
-      else if (idLists.has(name)) el.setAttribute(name, value.split(/\s+/).map(id => ids.get(id) ?? id).join(' '));
-      else if (name === 'href' || name === 'xlink:href' || name === 'src') {
-        const url = new URL(value, new URL(source, origin));
-        const local = decodeURIComponent(url.hash.slice(1));
-        if (url.origin === new URL(origin).origin && url.pathname === new URL(source, origin).pathname && ids.has(local)) {
-          el.setAttribute(name, '#' + ids.get(local));
-        } else if (!value.startsWith('data:')) el.setAttribute(name, relative(url, destination));
-      } else if (value.includes('url(#')) {
-        el.setAttribute(name, value.replace(/url\(#([^)]+)\)/g, (_, id) => 'url(#' + (ids.get(id) ?? id) + ')'));
-      }
-    }
-  }
-  return ids;
-}
+import { resolve, sep } from 'node:path';
+import { relocate } from './fragments.mjs';
 
 function heading(element, offset) {
   const current = Number(element.tagName.slice(1));
