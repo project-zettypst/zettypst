@@ -156,6 +156,10 @@ kbd {
 @keyframes zk-pop {
   from { opacity: 0; transform: translateY(3px); }
 }
+/* A footnote's body is shown only in its preview. */
+.zk-pane sup[role="doc-noteref"]:has(> template[data-zk-footnote]) { cursor: help; }
+.zk-preview > .zk-footnote > :first-child { margin-top: 0; }
+.zk-preview > .zk-footnote > :last-child { margin-bottom: 0; }
 
 /* ---- Search palette ----------------------------------------------------- */
 

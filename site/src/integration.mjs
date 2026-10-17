@@ -9,14 +9,18 @@
 //                                         expand, about (element or <template>)
 //   [data-zk-expand=id]                   a collapsed tree to expand in place
 //   section > script[data-zk-meta]        a card's metadata, JSON (metadata.mjs)
+//   sup[role=doc-noteref], section[role=doc-endnotes]
+//                                         Typst's footnotes, moved into cards (footnotes.mjs)
 //   zettypst.json                         published notes: id, route, title
 import { spawn } from 'node:child_process';
 import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'node-html-parser';
 import { createTypesetter, fontDirectory, licenseFile } from './math/typeset.mjs';
-import { serializeDirectory } from './metadata.mjs';
+import { serializeFootnotes } from './footnotes.mjs';
+import { serializeMeta } from './metadata.mjs';
 import { materializeDirectory } from './transclusion.mjs';
 
 // URL namespace of the files this integration owns; Typst owns every other path.
@@ -170,8 +174,14 @@ export default function zettypst(options = {}) {
         const path = join(next, file);
         await writeFile(path, await math.typeset(await readFile(path, 'utf8')));
       }
-      await serializeDirectory(next, (await files(next))
-        .filter(file => extname(file) === '.html').map(file => file.split(sep).join('/')));
+      // Footnotes first: a footnote may sit in content a metadata slot carries.
+      for (const file of await files(next)) {
+        if (extname(file) !== '.html') continue;
+        const path = join(next, file);
+        const route = file.split(sep).join('/');
+        const page = serializeFootnotes(parse(await readFile(path, 'utf8')), route);
+        await writeFile(path, serializeMeta(page, route).toString());
+      }
       await materializeDirectory(next);
     } catch (error) {
       await rm(next, { recursive: true, force: true });

@@ -4,8 +4,6 @@
 // site moves each slot's HTML into its value as {"$html": "..."} and removes
 // the templates, so a published card holds its metadata exactly once.
 import { parse } from 'node-html-parser';
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolve, sep } from 'node:path';
 import { relocate } from './transclusion.mjs';
 
 const isCard = node => node?.getAttribute?.('data-zk-node') != null && node.tagName === 'SECTION';
@@ -60,13 +58,4 @@ export function serializeMeta(page, route) {
     islands[0].set_content(encode(record));
   }
   return page;
-}
-
-export async function serializeDirectory(directory, routes) {
-  for (const route of routes) {
-    const path = resolve(directory, route);
-    if (!path.startsWith(resolve(directory) + sep)) throw new Error('Publication route escapes output');
-    const page = parse(await readFile(path, 'utf8'));
-    await writeFile(path, serializeMeta(page, route).toString());
-  }
 }
