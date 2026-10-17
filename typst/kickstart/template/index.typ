@@ -1,6 +1,5 @@
-#import ".zettypst/lib.typ": (
-  evaluate, export-pdf, final-observation, load, publish,
-)
+#import ".zettypst/lib.typ": zk
+#let (evaluate, export-pdf, final-observation, load, publish, ..) = zk
 
 #let project = load()
 #assert.eq(project.issues, ())

@@ -1,5 +1,6 @@
 // Web entrypoint: typst compile --features bundle,html --format bundle site.typ out
-#import ".zettypst/lib.typ": evaluate, export-html, load
+#import ".zettypst/lib.typ": zk
+#let (evaluate, export-html, load, ..) = zk
 
 #let project = load()
 #assert.eq(project.issues, ())

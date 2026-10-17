@@ -1,4 +1,4 @@
-#import "../lib.typ" as project-lib
+#import "../lib.typ": zk as project-lib
 #import "@preview/zettyp:0.1.0": core, host, kickstart
 #import core: eval
 

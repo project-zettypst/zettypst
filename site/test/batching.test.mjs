@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { typstBundle } from './typst.mjs';
 
 const entry = documents => `
-#import ".zettypst/lib.typ": evaluate, export-html, load
+#import ".zettypst/lib.typ": zk
+#let (evaluate, export-html, load, ..) = zk
 #let project = load()
 #export-html(project, evaluate(project), documents: ${documents})
 `;

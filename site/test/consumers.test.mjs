@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import { typstBundle } from './typst.mjs';
 
 const entry = `
-#import ".zettypst/lib.typ": *
+#import "@preview/zettyp:0.1.0": kickstart
+#import ".zettypst/lib.typ": zk
+#let (evaluate, export-html, load, ..) = zk
 #let project = load()
 #export-html(project, evaluate(project),
   render-unclassified: (source, reference) => {

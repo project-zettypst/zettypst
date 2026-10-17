@@ -1,8 +1,14 @@
 // Discover pending definitions before strict graph assembly.
-#import ".zettypst/lib.typ": (
-  announce-note-registration, discover, evaluate, load, plan-note-registration,
+#import ".zettypst/lib.typ": zk
+#let (
+  announce-note-registration,
+  discover,
+  evaluate,
+  load,
+  plan-note-registration,
   publish,
-)
+  ..,
+) = zk
 
 #let sources = discover()
 #let registration = plan-note-registration(sources)
