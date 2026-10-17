@@ -8,6 +8,7 @@
 //   [data-zk-view~=name]                  what a card shows elsewhere: preview,
 //                                         expand, about (element or <template>)
 //   [data-zk-expand=id]                   a collapsed tree to expand in place
+//   section > script[data-zk-meta]        a card's metadata, JSON (metadata.mjs)
 //   zettypst.json                         published notes: id, route, title
 import { spawn } from 'node:child_process';
 import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs';
@@ -15,6 +16,7 @@ import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTypesetter, fontDirectory, licenseFile } from './math/typeset.mjs';
+import { serializeDirectory } from './metadata.mjs';
 import { materializeDirectory } from './transclusion.mjs';
 
 // URL namespace of the files this integration owns; Typst owns every other path.
@@ -168,6 +170,8 @@ export default function zettypst(options = {}) {
         const path = join(next, file);
         await writeFile(path, await math.typeset(await readFile(path, 'utf8')));
       }
+      await serializeDirectory(next, (await files(next))
+        .filter(file => extname(file) === '.html').map(file => file.split(sep).join('/')));
       await materializeDirectory(next);
     } catch (error) {
       await rm(next, { recursive: true, force: true });

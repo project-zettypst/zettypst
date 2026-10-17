@@ -12,7 +12,7 @@ const relative = (url, destination) => {
   return (path || posix.basename(destination)) + url.search + url.hash;
 };
 
-function relocate(root, source, destination, prefix) {
+export function relocate(root, source, destination, prefix) {
   // Typst repeats glyph definitions across independent inline SVG frames.
   // Namespace each island first; article-level IDs still must be unique.
   const identities = root.querySelectorAll('[id]').map(el => el.id);

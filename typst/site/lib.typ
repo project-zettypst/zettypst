@@ -157,5 +157,87 @@
   }
 }
 
+// ---- Card metadata island (data-zk-meta, version 1) -------------------------
+// Each canonical card carries its metadata once, as JSON. Scalars, arrays and
+// records are kept; a vocabulary member becomes its value; content is rendered
+// into a numbered <template> slot and referenced as {"$slot": n}, which the
+// site replaces with {"$html": "..."} after math typesetting. Node references
+// are {"$node": id}. Keys starting with "$" are reserved for these markers.
+
+#let vocabulary-member(value) = (
+  type(value) == dictionary
+    and value.keys().sorted() == ("type", "value", "variant")
+)
+
+// Returns the encoded value and the slots extended by its content.
+#let encode-meta(value, slots) = {
+  if value == none or type(value) in (str, int, float, bool) {
+    (value, slots)
+  } else if type(value) == content {
+    (("$slot": slots.len()), slots + (value,))
+  } else if vocabulary-member(value) {
+    encode-meta(value.value, slots)
+  } else if type(value) == array {
+    let items = ()
+    for item in value {
+      let (encoded, next) = encode-meta(item, slots)
+      items.push(encoded)
+      slots = next
+    }
+    (items, slots)
+  } else if type(value) == dictionary {
+    let fields = (:)
+    for (key, item) in value {
+      assert(
+        not key.starts-with("$"),
+        message: "metadata keys starting with \"$\" are reserved: " + key,
+      )
+      let (encoded, next) = encode-meta(item, slots)
+      fields.insert(key, encoded)
+      slots = next
+    }
+    (fields, slots)
+  } else {
+    panic("unsupported metadata value of type " + str(type(value)))
+  }
+}
+
+#let node-refs(ids) = ids.map(id => ("$node": id))
+
+/// A card's metadata island. `nodes` names metadata fields that hold node
+/// IDs; `relations` maps names to arrays of node IDs.
+#let meta-island(id, title: none, metadata: (:), nodes: (), relations: (:)) = {
+  let (title, slots) = encode-meta(title, ())
+  let fields = (:)
+  for (key, value) in metadata {
+    if key in nodes {
+      fields.insert(key, node-refs(value))
+    } else {
+      let (encoded, next) = encode-meta(((key): value), slots)
+      fields.insert(key, encoded.at(key))
+      slots = next
+    }
+  }
+  let record = (
+    version: 1,
+    id: id,
+    title: title,
+    metadata: fields,
+    relations: relations
+      .pairs()
+      .map(((key, ids)) => (key, node-refs(ids)))
+      .to-dict(),
+  )
+  // "<" never appears literally, so the raw text cannot close its element.
+  html.elem(
+    "script",
+    attrs: (type: "application/json", "data-zk-meta": ""),
+    json.encode(record, pretty: false).replace("<", "\\u003c"),
+  )
+  isolated(for (index, slot) in slots.enumerate() {
+    html.elem("template", attrs: ("data-zk-meta-slot": str(index)), slot)
+  })
+}
+
 /// Publish resolved entries with string id, route and title fields.
 #let publish-index(entries) = asset("zettypst.json", json.encode(entries))

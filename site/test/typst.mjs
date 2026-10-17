@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'node-html-parser';
 import { canonicalMains, materialize } from '../src/transclusion.mjs';
+import { serializeMeta } from '../src/metadata.mjs';
 
 const rules = fileURLToPath(new URL('../../typst/site/lib.typ', import.meta.url));
 
@@ -61,6 +62,7 @@ export function typstBundle(fixture, entry = 'site.typ', sources = {}) {
     for (const file of readdirSync(out, { recursive: true })) {
       if (file.endsWith('.html')) pages[file] = parse(readFileSync(join(out, file), 'utf8'));
     }
+    for (const [path, page] of Object.entries(pages)) serializeMeta(page, path);
     const index = JSON.parse(readFileSync(join(out, 'zettypst.json'), 'utf8'));
     // Partial batch tests deliberately have only some canonical targets.
     if (index.every(entry => pages[entry.route])) {
