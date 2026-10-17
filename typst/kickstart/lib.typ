@@ -28,3 +28,6 @@
 #import "src/transclusion/pdf.typ" as pdf
 #import "src/host.typ" as host
 #import "src/capture/lib.typ" as capture
+#import "src/notebook.typ": (
+  defaults, direction, notebook, register, replace, vocab,
+)
