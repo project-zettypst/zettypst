@@ -36,7 +36,6 @@ function check(page) {
     const id = decodeURIComponent(a.getAttribute('href').slice(1));
     assert.ok(ids.includes(id), 'missing local destination: ' + id);
   }
-  assert.equal(page.querySelectorAll('[data-zk-transclusion]').length, 0);
 }
 
 test('local-label reproducer succeeds with the HTML consumer and isolated DOM copies', () => {
@@ -47,7 +46,7 @@ test('local-label reproducer succeeds with the HTML consumer and isolated DOM co
   for (const copy of copies) {
     assert.equal(copy.querySelectorAll('footer').length, 0);
     assert.ok(copy.textContent.includes('See Local'));
-    assert.ok(copy.querySelector('a[href^="#zk-copy-"]'));
+    assert.ok(copy.querySelector('a[href^="#zettyp-html-"]'));
   }
 });
 
@@ -87,12 +86,28 @@ test('direct expansion remains an explicit consumer, including its native-label 
   }), /occurs multiple times/);
 });
 
-test('HTML requests do not evaluate the target body when consuming an embedding', () => {
+test('HTML expands targets in the requesting document, even in a partial batch', () => {
   const pages = typstBundle('edges', 'site.typ', {
     'site.typ': entry.replace('evaluate(project),', 'evaluate(project), documents: ("b/index.html",),'),
-    'note/a.typ': a + '\n#context panic("target body must not be laid out")\n',
+    'note/a.typ': a,
     'note/b.typ': b + '\n#include-note[@a]\n',
   });
   assert.deepEqual(Object.keys(pages), ['b/index.html']);
-  assert.ok(pages['b/index.html'].querySelector('[data-zk-transclusion="a"][data-zk-source="b"]'));
+  const copy = pages['b/index.html'].querySelector('[data-zk-main] > section[data-zk-node="a"] [data-zk-main-copy]');
+  assert.ok(copy.textContent.includes('See Local'));
+});
+
+test('copies number in the requesting document', () => {
+  const numbered = '#set math.equation(numbering: "(1)")\n';
+  const pages = typstBundle('edges', 'site.typ', {
+    'site.typ': entry,
+    'note/a.typ': a + numbered + '$ x $ <eq-a>\nSee @eq-a. A#footnote[From A].\n',
+    'note/b.typ': b + numbered + '$ y $\nB#footnote[From B].\n#include-note[@a]\n',
+  });
+  for (const page of Object.values(pages)) check(page);
+  const main = pages['b/index.html'].querySelector('body > section > details > [data-zk-main]');
+  const copy = main.querySelector('[data-zk-main-copy]');
+  assert.match(copy.textContent, /See Equation\s2\./);
+  assert.deepEqual(main.querySelectorAll('sup[role="doc-noteref"]').map(ref => ref.firstChild.text), ['1', '2']);
+  assert.equal(copy.querySelector('template[data-zk-footnote]').text, 'From A');
 });

@@ -22,7 +22,6 @@ import { createTypesetter, fontDirectory, licenseFile } from './math/typeset.mjs
 import { serializeFootnotes } from './footnotes.mjs';
 import { isolatePage } from './fragments.mjs';
 import { serializeMeta } from './metadata.mjs';
-import { materializeDirectory } from './transclusion.mjs';
 
 // URL namespace of the files this integration owns; Typst owns every other path.
 export const OWN = '_zettypst';
@@ -184,7 +183,6 @@ export default function zettypst(options = {}) {
         const page = serializeFootnotes(isolatePage(parse(await readFile(path, 'utf8')), route), route);
         await writeFile(path, serializeMeta(page, route).toString());
       }
-      await materializeDirectory(next);
     } catch (error) {
       await rm(next, { recursive: true, force: true });
       if (strict) throw error;

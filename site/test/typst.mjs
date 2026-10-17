@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'node-html-parser';
-import { canonicalMains, materialize } from '../src/transclusion.mjs';
 import { serializeFootnotes } from '../src/footnotes.mjs';
 import { isolatePage } from '../src/fragments.mjs';
 import { serializeMeta } from '../src/metadata.mjs';
@@ -65,12 +64,6 @@ export function typstBundle(fixture, entry = 'site.typ', sources = {}) {
       if (file.endsWith('.html')) pages[file] = parse(readFileSync(join(out, file), 'utf8'));
     }
     for (const [path, page] of Object.entries(pages)) serializeMeta(serializeFootnotes(isolatePage(page, path), path), path);
-    const index = JSON.parse(readFileSync(join(out, 'zettypst.json'), 'utf8'));
-    // Partial batch tests deliberately have only some canonical targets.
-    if (index.every(entry => pages[entry.route])) {
-      const mains = canonicalMains(new Map(Object.entries(pages)), index);
-      for (const [path, page] of Object.entries(pages)) materialize(page, path, mains);
-    }
     return pages;
   } finally {
     rmSync(work, { recursive: true, force: true });

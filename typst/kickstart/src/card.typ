@@ -95,7 +95,7 @@
 /// node IDs; the island publishes them as node references.
 /// Content is rendered like the card, kept inert in a `<template>`, and does
 /// not advance counters. Custom templates must not duplicate referenced Typst
-/// labels. Transclusion requests instead reuse the canonical HTML mainmatter.
+/// labels. Transclusions are display instances with their own labels.
 #let card(note, embed: none, views: (:)) = {
   show: html-rules
   site.meta-island(
