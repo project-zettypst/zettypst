@@ -91,18 +91,18 @@
 ///   Unless declared, the site renders it from the card's metadata island.
 /// Each returns `auto` (the card's title and body, marked in place), `none`
 /// (no such view) or content, e.g. `note => [#note.metadata.abstract]`.
-/// `node-fields` names metadata fields holding node IDs (the project's
-/// relation projections); the island publishes them as node references.
+/// The note's `node-fields`, set by `export-html`, name metadata fields holding
+/// node IDs; the island publishes them as node references.
 /// Content is rendered like the card, kept inert in a `<template>`, and does
 /// not advance counters. Custom templates must not duplicate referenced Typst
 /// labels. Transclusion requests instead reuse the canonical HTML mainmatter.
-#let card(note, embed: none, views: (:), node-fields: ()) = {
+#let card(note, embed: none, views: (:)) = {
   show: html-rules
   site.meta-island(
     note.id,
     title: note.title,
     metadata: note.metadata,
-    nodes: node-fields,
+    nodes: note.at("node-fields", default: ()),
     relations: (
       "context": note.at("context", default: ()),
       backlinks: note.backlinks,
@@ -113,7 +113,9 @@
       .to-dict(),
   )
   let shown = (
-    (preview: note => auto, expand: note => auto) + views
+    (preview: note => auto, expand: note => auto)
+      + note.at("views", default: (:))
+      + views
   )
     .pairs()
     .map(((name, view)) => (name, view(note)))

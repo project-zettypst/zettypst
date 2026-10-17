@@ -18,6 +18,9 @@
   consume: html-consumer.consume,
   documents: auto,
   render-unclassified: (source, reference) => reference,
+  // Project facts for cards travel on note records, past any card wrapper.
+  node-fields: (),
+  views: (:),
 ) = {
   assert(
     documents == auto
@@ -42,7 +45,15 @@
           and path.split("/").all(part => part not in ("", ".", "..")),
       message: "route must be a relative .html path or none: " + note.id,
     )
-    notes.insert(note.id, note + (route: path))
+    notes.insert(
+      note.id,
+      note
+        + (
+          route: path,
+          node-fields: node-fields,
+          views: views,
+        ),
+    )
   }
   // Endpoints of every relation colour, deduplicated, published and non-self.
   let neighbours(id, from, to) = state

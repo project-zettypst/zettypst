@@ -133,7 +133,8 @@
   final-observation: final-observation,
   project-notes: project-notes,
   route: route,
-  card: kickstart.site.card.with(node-fields: projections.keys()),
+  card: kickstart.site.card,
+  node-fields: projections.keys(),
   documents: if "zettypst.documents" in sys.inputs {
     json(bytes(sys.inputs.at("zettypst.documents")))
   } else { auto },
