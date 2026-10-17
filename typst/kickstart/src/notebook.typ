@@ -18,7 +18,8 @@
 #import "registration.typ": (
   allocate-note-id, announce-note-registration, plan-note-registration,
 )
-#import "evaluation.typ": evaluate, observe
+#import "content.typ": display-value
+#import "evaluation.typ": evaluate, evaluation-issues, observe
 #import "editor.typ" as editor
 #import "export.typ": announce-project, publish
 #import "policies/lifecycle.typ": lifecycle-policy
@@ -451,6 +452,8 @@
 
   (
     ..edges,
+    display-value: display-value,
+    evaluation-issues: evaluation-issues,
     lifecycle: lifecycle-members,
     colors: colors,
     registry: registry,

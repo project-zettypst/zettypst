@@ -3,17 +3,17 @@
 #import "../../host/lib.typ" as host
 
 #let snapshot(project-lib) = {
-  let project = project-lib.load()
+  let project = (project-lib.load)()
   assert.eq(project.issues, (), message: "knowledge assembly failed")
-  let result = project-lib.evaluate(project)
-  let final = project-lib.final-observation(result.program, result.execution)
-  let errors = project-lib
-    .evaluation-issues(result.execution)
-    .map(it => repr((
+  let result = (project-lib.evaluate)(project)
+  let final = (project-lib.final-observation)(result.program, result.execution)
+  let errors = (project-lib.evaluation-issues)(result.execution).map(it => repr(
+    (
       code: str(it.code),
       message: it.message,
       occurrences: it.occurrences,
-    )))
+    ),
+  ))
   (project: project, final: final, errors: errors)
 }
 #let check-errors(state, baseline) = {

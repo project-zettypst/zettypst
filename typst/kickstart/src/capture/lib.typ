@@ -49,7 +49,7 @@
   let candidates = notebook-host
     .notes(state, project-notes: project-lib.project-notes)
     .map(note => (
-      note + (title: project-lib.display-value(note.title))
+      note + (title: (project-lib.display-value)(note.title))
     ))
   let note = verify(intent, nodes: candidates, read-file: read-file)
   notebook-host.announce-node(note, display-value: project-lib.display-value)
