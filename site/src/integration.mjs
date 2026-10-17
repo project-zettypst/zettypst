@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'node-html-parser';
 import { createTypesetter, fontDirectory, licenseFile } from './math/typeset.mjs';
 import { serializeFootnotes } from './footnotes.mjs';
+import { isolatePage } from './fragments.mjs';
 import { serializeMeta } from './metadata.mjs';
 import { materializeDirectory } from './transclusion.mjs';
 
@@ -174,12 +175,13 @@ export default function zettypst(options = {}) {
         const path = join(next, file);
         await writeFile(path, await math.typeset(await readFile(path, 'utf8')));
       }
-      // Footnotes first: a footnote may sit in content a metadata slot carries.
+      // Frames first, so moved fragments keep unique IDs; then footnotes, which
+      // may sit in content a metadata slot carries.
       for (const file of await files(next)) {
         if (extname(file) !== '.html') continue;
         const path = join(next, file);
         const route = file.split(sep).join('/');
-        const page = serializeFootnotes(parse(await readFile(path, 'utf8')), route);
+        const page = serializeFootnotes(isolatePage(parse(await readFile(path, 'utf8')), route), route);
         await writeFile(path, serializeMeta(page, route).toString());
       }
       await materializeDirectory(next);

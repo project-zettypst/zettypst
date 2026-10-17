@@ -67,3 +67,32 @@ export function relocate(root, source, destination, prefix) {
   return ids;
 }
 
+/**
+ * A canonical page, once: frames are isolated, references outside them follow
+ * unique definitions, and every remaining ID must be unique in the page.
+ */
+export function isolatePage(page, route) {
+  const aliases = isolateFrames(page, route, 'zk-');
+  if (aliases.size) {
+    // Elements inside a frame already refer to its own namespace.
+    for (const el of page.querySelectorAll('*').filter(el => !el.parentNode.closest?.('svg'))) {
+      for (const [name, value] of Object.entries(el.attributes)) {
+        if (idLists.has(name)) {
+          el.setAttribute(name, value.split(/\s+/).map(id => aliases.get(id) ?? id).join(' '));
+        } else if ((name === 'href' || name === 'xlink:href') && value.startsWith('#')) {
+          const id = decodeURIComponent(value.slice(1));
+          if (aliases.has(id)) el.setAttribute(name, '#' + aliases.get(id));
+        } else if (value.includes('url(#')) {
+          el.setAttribute(name, value.replace(/url\(#([^)]+)\)/g, (_, id) => 'url(#' + (aliases.get(id) ?? id) + ')'));
+        }
+      }
+    }
+  }
+  const seen = new Set();
+  for (const el of page.querySelectorAll('[id]')) {
+    const id = el.getAttribute('id');
+    if (seen.has(id)) throw new Error('Duplicate ID ' + id + ' in ' + route);
+    seen.add(id);
+  }
+  return page;
+}
