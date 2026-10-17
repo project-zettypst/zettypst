@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      commit:
+        description: "Full SHA of a commit on main to release (default: the head of main)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -19,16 +24,19 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
+      sha: ${{ steps.version.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.commit || github.sha }}
       - name: Determine version and release intent
         id: version
         env:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           BEFORE: ${{ github.event.before }}
+          COMMIT: ${{ inputs.commit }}
         run: |
           python3 - <<'PY'
           import os
@@ -37,6 +45,12 @@ jobs:
           from pathlib import Path
 
           version = tomllib.loads(Path("lsp/Cargo.toml").read_text())["package"]["version"]
+          sha = subprocess.run(
+              ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True,
+          ).stdout.strip()
+          if os.environ["COMMIT"]:
+              # A chosen commit must already belong to main.
+              subprocess.run(["git", "merge-base", "--is-ancestor", sha, "origin/main"], check=True)
           release = False
           if os.environ["REF"] == "refs/heads/main":
               if os.environ["EVENT"] == "workflow_dispatch":
@@ -63,7 +77,7 @@ jobs:
                           raise RuntimeError(previous.stderr)
                       release = True
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"version={version}\nrelease={str(release).lower()}\n")
+              output.write(f"version={version}\nrelease={str(release).lower()}\nsha={sha}\n")
           PY
 
   build:
@@ -85,6 +99,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - name: Set up stable Rust
         shell: bash
         run: |
@@ -147,6 +163,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - uses: actions/download-artifact@v4
         with:
           pattern: zettyp-lsp-*
@@ -159,6 +177,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.version.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -173,12 +192,12 @@ jobs:
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
-            test "$(git rev-parse "$tag^{commit}")" = "$GITHUB_SHA" || {
+            test "$(git rev-parse "$tag^{commit}")" = "$SHA" || {
               echo "Tag $tag points to another commit."
               exit 1
             }
           else
-            git tag "$tag" "$GITHUB_SHA"
+            git tag "$tag" "$SHA"
             git push origin "refs/tags/$tag"
           fi
           if ! gh release view "$tag" > /dev/null 2>&1; then
