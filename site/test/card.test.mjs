@@ -42,12 +42,16 @@ describe('views', () => {
     const page = card('(:)');
     assert.equal(page.querySelector('details').getAttribute('data-zk-view'), 'preview expand');
   });
-  test('the default about view lists metadata and the neighbourhood', () => {
+  test('about is left to the metadata island unless declared', () => {
     const page = card('(:)');
-    const about = page.querySelector('template[data-zk-view="about"] dl.zk-about');
-    const terms = about.querySelectorAll('dt').map(it => it.text);
-    assert.deepEqual(terms, ['tags', 'backlinks', 'links']);
-    assert.equal(about.querySelectorAll('dd')[0].text, 'fixture');
+    assert.equal(page.querySelector('template[data-zk-view="about"]'), null);
+    const record = JSON.parse(page.querySelector('section > script[data-zk-meta]').rawText);
+    assert.deepEqual(record, {
+      version: 1, id: 'n', title: { $slot: 0 },
+      metadata: { tags: ['fixture'], abstract: '' },
+      relations: { context: [], backlinks: [], links: [] },
+    });
+    assert.equal(page.querySelector('template[data-zk-meta-slot="0"]').text, 'Note');
   });
   test('content views are inert templates; none is an empty one', () => {
     const page = card('(preview: note => [Abstract.], expand: note => none)');

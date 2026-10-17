@@ -2,6 +2,7 @@
 // expansion of collapsed backmatter trees. Both act on note links only, as
 // Typst marked them; a preview's links open in the stack, never nested.
 import { entries, fetchView, manifest, zkLink } from './cards';
+import { renderAbout } from './meta';
 import { open } from './stack';
 
 const hoverable = matchMedia('(hover: hover) and (pointer: fine)');
@@ -64,7 +65,8 @@ export function initPreview() {
       try {
         // Self-links show metadata; other links show the target's preview.
         const view = link.source === link.entry.id ? 'about' : 'preview';
-        const preview = await fetchView(link.entry, view);
+        // Without a declared about view, the card's metadata island supplies it.
+        const preview = await fetchView(link.entry, view, view === 'about' ? renderAbout : undefined);
         // Session identity, not link identity, owns the async result.
         if (session !== active || session.phase !== 'loading') return;
         if (!preview || !link.element.isConnected) { end(); return; }

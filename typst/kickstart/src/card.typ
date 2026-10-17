@@ -83,53 +83,37 @@
   )
 }
 
-#let blank(value) = value in (none, "", (), (:), [])
-
-// One metadata value as text: vocabulary members by name, lists joined.
-#let metadata-value(value) = if type(value) == dictionary and "value" in value {
-  value.value
-} else if type(value) == dictionary {
-  value
-    .pairs()
-    .filter(((_, it)) => not blank(it))
-    .map(((key, it)) => [#key: #metadata-value(it)])
-    .join[; ]
-} else if type(value) == array {
-  value.map(metadata-value).join[, ]
-} else if type(value) == bool {
-  if value [yes] else [no]
-} else if type(value) in (str, content) { value } else { repr(value) }
-
-/// The default `about` view: the note's metadata and its graph neighbourhood,
-/// as the editor's hover shows them.
-#let about(note) = html.elem("dl", attrs: (class: "zk-about"), {
-  for (key, value) in note.metadata {
-    if not blank(value) {
-      html.elem("dt", key)
-      html.elem("dd", metadata-value(value))
-    }
-  }
-  html.elem("dt", "backlinks")
-  html.elem("dd", str(note.backlinks.len()))
-  html.elem("dt", "links")
-  html.elem("dd", str(note.links.len()))
-})
-
 /// The card layout. `views` are policies deciding, per note, what the card
 /// shows when it appears elsewhere, by name:
 /// - `preview`: a hover preview, from a link in another card;
 /// - `expand`: an in-place expansion of a collapsed tree;
-/// - `about`: a hover preview from the card's own links (its slug, say);
-///   by default its metadata.
+/// - `about`: a hover preview from the card's own links (its slug, say).
+///   Unless declared, the site renders it from the card's metadata island.
 /// Each returns `auto` (the card's title and body, marked in place), `none`
 /// (no such view) or content, e.g. `note => [#note.metadata.abstract]`.
+/// `node-fields` names metadata fields holding node IDs (the project's
+/// relation projections); the island publishes them as node references.
 /// Content is rendered like the card, kept inert in a `<template>`, and does
 /// not advance counters. Custom templates must not duplicate referenced Typst
 /// labels. Transclusion requests instead reuse the canonical HTML mainmatter.
-#let card(note, embed: none, views: (:)) = {
+#let card(note, embed: none, views: (:), node-fields: ()) = {
   show: html-rules
+  site.meta-island(
+    note.id,
+    title: note.title,
+    metadata: note.metadata,
+    nodes: node-fields,
+    relations: (
+      "context": note.at("context", default: ()),
+      backlinks: note.backlinks,
+      links: note.links,
+    )
+      .pairs()
+      .map(((name, notes)) => (name, notes.map(it => it.id)))
+      .to-dict(),
+  )
   let shown = (
-    (preview: note => auto, expand: note => auto, about: about) + views
+    (preview: note => auto, expand: note => auto) + views
   )
     .pairs()
     .map(((name, view)) => (name, view(note)))

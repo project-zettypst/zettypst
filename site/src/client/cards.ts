@@ -116,15 +116,22 @@ export async function fetchCard(entry: Entry) {
 }
 
 /**
- * A card's named view (`preview`, `expand`), as its layout declared it: the
- * content of a `[data-zk-view~=name]` template, or the element so marked.
- * An empty template means the card has no such view (null); a card without
- * any mark is shown whole. The result keeps the card's identity.
+ * A card's named view (`preview`, `expand`, `about`), as its layout declared
+ * it: the content of a `[data-zk-view~=name]` template, or the element so
+ * marked. An empty template means the card has no such view (null). A card
+ * without any mark is shown by `fallback` when given, otherwise whole. The
+ * result keeps the card's identity.
  */
-export async function fetchView(entry: Entry, name: string) {
+export async function fetchView(
+  entry: Entry,
+  name: string,
+  fallback?: (card: Element) => Promise<Node | null>,
+) {
   const found = await findCard(entry);
   const marked = found.querySelector(`[data-zk-view~="${CSS.escape(name)}"]`);
-  const source = marked instanceof HTMLTemplateElement ? marked.content : marked ?? found;
+  const made = !marked && fallback ? await fallback(found) : undefined;
+  if (made === null) return null;
+  const source = marked instanceof HTMLTemplateElement ? marked.content : marked ?? made ?? found;
   const view = document.createElement('section');
   view.setAttribute('data-zk-node', entry.id);
   if (source === found) view.append(...[...found.childNodes].map(node => document.importNode(node, true)));
