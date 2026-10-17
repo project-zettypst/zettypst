@@ -63,6 +63,9 @@ export function initPrefetch(root: HTMLElement) {
 }
 
 let instances = 0;
+// Inert template content belongs to its fragment: it is shown elsewhere later.
+const descendants = (root: Element | DocumentFragment): Element[] => [...root.querySelectorAll('*')]
+  .flatMap(el => (el instanceof HTMLTemplateElement ? [el, ...descendants(el.content)] : [el]));
 const idLists = ['for', 'headers', 'aria-labelledby', 'aria-describedby', 'aria-controls', 'aria-owns'];
 
 /**
@@ -73,7 +76,7 @@ const idLists = ['for', 'headers', 'aria-labelledby', 'aria-describedby', 'aria-
  */
 export function relocate(root: Element, source: URL) {
   const prefix = `zk${++instances}-`;
-  const all = [root, ...root.querySelectorAll('*')];
+  const all = [root, ...descendants(root)];
   const ids = new Set(all.map(el => el.id).filter(Boolean));
   const local = (value: string) => (ids.has(value) ? prefix + value : value);
   for (const el of all) {
